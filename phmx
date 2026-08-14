@@ -1,0 +1,264 @@
+<?php
+// Script CLI (PHMX Artisan)
+// Berfungsi untuk manajemen framework (Generate CRUD, Migrate Database, dll)
+
+if (php_sapi_name() !== 'cli') {
+    die("Script ini hanya dapat dijalankan melalui Command Line (Terminal).\n");
+}
+
+$command = $argv[1] ?? '';
+
+if (empty($command)) {
+    echo "=================================================\n";
+    echo "               PHMX CLI MANAGER                  \n";
+    echo "=================================================\n";
+    echo "Perintah tersedia:\n";
+    echo "  make:crud <path>    : Membuat kerangka dasar file (Pages, Actions, API)\n";
+    echo "                        Contoh: php phmx make:crud products/product-management\n";
+    echo "  migrate             : Mengeksekusi semua file SQL di folder 'database/'\n";
+    echo "=================================================\n";
+    exit(0);
+}
+
+switch ($command) {
+    case 'make:crud':
+        handleMakeCrud($argv);
+        break;
+    case 'migrate':
+        handleMigrate();
+        break;
+    default:
+        // Kompatibilitas mundur jika user mengetik -f
+        if ($command === '-f') {
+            handleMakeCrud(['', '', $argv[2] ?? '']);
+        } else {
+            echo "Perintah tidak dikenali: {$command}\n";
+            echo "Ketik 'php phmx' untuk melihat daftar perintah.\n";
+            exit(1);
+        }
+        break;
+}
+
+// ==========================================
+// FUNGSI: MAKE CRUD
+// ==========================================
+function handleMakeCrud($argv) {
+    $path = $argv[2] ?? '';
+    if (empty($path)) {
+        echo "Format salah. Gunakan format: folder/filename (contoh: products/product-management)\n";
+        exit(1);
+    }
+
+    $parts = explode('/', $path);
+    if (count($parts) < 2) {
+        echo "Format salah. Gunakan format: folder/filename (contoh: products/product-management)\n";
+        exit(1);
+    }
+
+    $file_name = array_pop($parts);
+    $folder_name = implode('/', $parts);
+
+    $pages_dir = __DIR__ . '/pages/' . $folder_name;
+    $actions_dir = __DIR__ . '/actions/' . $folder_name;
+    $api_dir = __DIR__ . '/api/' . $folder_name;
+
+    // Buat direktori jika belum ada
+    if (!is_dir($pages_dir)) mkdir($pages_dir, 0777, true);
+    if (!is_dir($actions_dir)) mkdir($actions_dir, 0777, true);
+    if (!is_dir($api_dir)) mkdir($api_dir, 0777, true);
+
+    $title = ucwords(str_replace(['-', '_'], ' ', $file_name));
+
+    // 1. GENERATE PAGES
+    $pages_file = $pages_dir . '/' . $file_name . '.php';
+    if (!file_exists($pages_file)) {
+        $pages_content = <<<HTML
+<!-- pages/{$folder_name}/{$file_name}.php -->
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-dark">{$title}</h2>
+    </div>
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+            <p>Halaman ini berhasil di-generate melalui CLI.</p>
+        </div>
+    </div>
+</div>
+HTML;
+        file_put_contents($pages_file, $pages_content);
+        echo "Created: {$pages_file}\n";
+    } else {
+        echo "Skipped: {$pages_file} (Sudah ada)\n";
+    }
+
+    // 2. GENERATE ACTIONS
+    $actions_file = $actions_dir . '/' . $file_name . '.php';
+    if (!file_exists($actions_file)) {
+        $actions_content = <<<PHP
+<?php
+// actions/{$folder_name}/{$file_name}.php
+
+if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
+    \$action_type = \$_POST['action_type'] ?? '';
+    
+    if (\$action_type === 'add') {
+        // Logika tambah data
+    } else if (\$action_type === 'update') {
+        // Logika edit data
+    } else if (\$action_type === 'delete') {
+        // Logika hapus data
+    }
+}
+?>
+PHP;
+        file_put_contents($actions_file, $actions_content);
+        echo "Created: {$actions_file}\n";
+    } else {
+        echo "Skipped: {$actions_file} (Sudah ada)\n";
+    }
+
+    // 3. GENERATE API
+    $api_file = $api_dir . '/' . $file_name . '.php';
+    if (!file_exists($api_file)) {
+        $api_content = <<<PHP
+<?php
+// api/{$folder_name}/{$file_name}.php
+header("Content-Type: application/json");
+// require_once __DIR__ . '/../../functions/index.php';
+
+\$method = \$_SERVER['REQUEST_METHOD'];
+
+switch (\$method) {
+    case 'GET':
+        echo json_encode(['status' => 'success', 'message' => 'API Endpoint for {$file_name} is ready.']);
+        break;
+    default:
+        echo json_encode(['status' => 'error', 'message' => 'Method not allowed']);
+        break;
+}
+?>
+PHP;
+        file_put_contents($api_file, $api_content);
+        echo "Created: {$api_file}\n";
+    } else {
+        echo "Skipped: {$api_file} (Sudah ada)\n";
+    }
+
+    // 4. ROUTE (Dihapus karena sudah pindah ke arsitektur File-Based Routing dengan hx-boost)
+
+    echo "\n[SUKSES] Kerangka modul {$folder_name}/{$file_name} berhasil dibuat!\n";
+}
+
+// ==========================================
+// FUNGSI: MIGRATE
+// ==========================================
+function handleMigrate() {
+    // Load koneksi database SEBELUM melakukan output (echo) apapun
+    // agar session_start() di config.php tidak memunculkan warning 'headers already sent'.
+    require_once __DIR__ . '/config.php';
+    if (!isset($con) || !$con) {
+        die("[ERROR] Gagal terhubung ke database. Cek config.php\n");
+    }
+
+    echo "Memulai Database Migration...\n";
+
+    // Cek apakah tabel migrations sudah ada
+    $checkTable = mysqli_query($con, "SHOW TABLES LIKE 'migrations'");
+    if (mysqli_num_rows($checkTable) == 0) {
+        echo "-> Tabel 'migrations' belum ada. Membuat tabel...\n";
+        $createTable = "CREATE TABLE `migrations` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `filename` varchar(255) NOT NULL,
+            `executed_at` timestamp NOT NULL DEFAULT current_timestamp(),
+            PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+        
+        if (mysqli_query($con, $createTable)) {
+            echo "-> Tabel 'migrations' berhasil dibuat!\n";
+        } else {
+            die("[ERROR] Gagal membuat tabel migrations: " . mysqli_error($con) . "\n");
+        }
+    }
+
+    $db_dir = __DIR__ . '/database';
+    if (!is_dir($db_dir)) {
+        echo "[INFO] Folder 'database/' tidak ditemukan. Tidak ada migrasi yang dijalankan.\n";
+        exit(0);
+    }
+
+    // Ambil daftar file SQL yang sudah dieksekusi dari database
+    $executed = [];
+    $res = mysqli_query($con, "SELECT filename FROM migrations");
+    while ($row = mysqli_fetch_assoc($res)) {
+        $executed[] = $row['filename'];
+    }
+
+    // Scan folder database/ untuk file .sql
+    $files = scandir($db_dir);
+    $sqlFiles = [];
+    foreach ($files as $file) {
+        if (pathinfo($file, PATHINFO_EXTENSION) === 'sql') {
+            $sqlFiles[] = $file;
+        }
+    }
+    
+    sort($sqlFiles); // Urutkan berdasarkan abjad (yang berarti berdasarkan tanggal)
+
+    $migratedCount = 0;
+    foreach ($sqlFiles as $file) {
+        if (!in_array($file, $executed)) {
+            echo "-> Migrasi berjalan: {$file} ... ";
+            
+            $sql_content = file_get_contents($db_dir . '/' . $file);
+            
+            try {
+                // Eksekusi multi query (karena file .sql mungkin berisi banyak query)
+                if (mysqli_multi_query($con, $sql_content)) {
+                    // Hapus sisa hasil dari multi_query agar tidak menyumbat query berikutnya
+                    do {
+                        if ($result = mysqli_store_result($con)) {
+                            mysqli_free_result($result);
+                        }
+                    } while (mysqli_more_results($con) && mysqli_next_result($con));
+
+                    // Catat ke tabel migrations
+                    $stmt = mysqli_prepare($con, "INSERT INTO migrations (filename) VALUES (?)");
+                    mysqli_stmt_bind_param($stmt, "s", $file);
+                    mysqli_stmt_execute($stmt);
+                    
+                    echo "SUKSES\n";
+                    $migratedCount++;
+                } else {
+                    echo "GAGAL!\n";
+                    echo "[ERROR] Pesan: " . mysqli_error($con) . "\n";
+                    die("[ABORTED] Proses migrasi dihentikan karena error.\n");
+                }
+            } catch (mysqli_sql_exception $e) {
+                $errCode = $e->getCode();
+                // Toleransi Error:
+                // 1050: Table already exists
+                // 1060: Duplicate column name
+                // 1061: Duplicate key name
+                if (in_array($errCode, [1050, 1060, 1061])) {
+                    echo "DIABAIKAN (Sudah ada)\n";
+                    // Tetap catat ke tabel migrations agar tidak terus-menerus diuji di masa depan
+                    $stmt = mysqli_prepare($con, "INSERT INTO migrations (filename) VALUES (?)");
+                    mysqli_stmt_bind_param($stmt, "s", $file);
+                    mysqli_stmt_execute($stmt);
+                    $migratedCount++;
+                } else {
+                    echo "GAGAL!\n";
+                    echo "[ERROR] Kode: {$errCode} | Pesan: " . $e->getMessage() . "\n";
+                    die("[ABORTED] Proses migrasi dihentikan karena error.\n");
+                }
+            }
+        }
+    }
+
+    if ($migratedCount === 0) {
+        echo "[INFO] Tidak ada file migrasi baru. Database sudah up-to-date.\n";
+    } else {
+        echo "[SUKSES] {$migratedCount} file migrasi berhasil dieksekusi!\n";
+    }
+}
+?>

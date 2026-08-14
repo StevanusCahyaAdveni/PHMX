@@ -1,0 +1,10 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Abaikan file dan folder nyata
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Arahkan semua request ke index.php dengan parameter 'hal'
+    RewriteRule ^(.*)$ index.php?hal=$1 [QSA,L]
+</IfModule>

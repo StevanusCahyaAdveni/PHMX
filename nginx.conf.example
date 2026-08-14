@@ -1,0 +1,38 @@
+server {
+    listen 80;
+    server_name your_domain.com;
+    root /var/www/your_project/PHMX;
+    index index.php index.html index.htm;
+
+    # ==========================================
+    # PHMX ROUTING & SECURITY
+    # ==========================================
+
+    # 1. Routing HTML5 History API (Mengarahkan semua request ke index.php)
+    location / {
+        try_files $uri $uri/ /index.php?hal=$uri;
+    }
+
+    # 2. Blokir akses langsung ke folder pages/
+    location ^~ /pages/ {
+        deny all;
+        return 403;
+    }
+
+    # 3. Blokir akses langsung ke folder actions/
+    location ^~ /actions/ {
+        deny all;
+        return 403;
+    }
+
+    # Konfigurasi standar eksekusi PHP
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.1-fpm.sock; # Sesuaikan versi PHP
+    }
+
+    # Blokir akses ke file .htaccess dan sistem
+    location ~ /\.ht {
+        deny all;
+    }
+}
