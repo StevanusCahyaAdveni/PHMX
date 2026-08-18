@@ -62,13 +62,7 @@ function htmxRedirectWithMessage($hash, $message, $type = 'success', $delay = 15
                   icon: '{$icon}',
                   title: '{$message}'
                 }).then(() => {
-                    htmx.ajax({
-                        method: 'GET',
-                        url: '{$hash}',
-                        target: 'body',
-                        select: 'body',
-                        swap: 'innerHTML'
-                    });
+                    htmx.ajax('GET', '{$hash}', {target: 'body'});
                     window.history.pushState(null, '', '{$hash}');
                 });
             })();
