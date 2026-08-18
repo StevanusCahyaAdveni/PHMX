@@ -207,11 +207,13 @@ function generatePageContent($file_name, $folder_name, $table_name, $col_names, 
                                     onclick="openEditModal({$editArgs})">
                                 Edit
                             </button>
-                            <form hx-post="?act={$folder_name}/{$file_name}" hx-target="#crud-alert" hx-confirm="Yakin ingin menghapus data ini?" style="display:inline-block;">
-                                <input type="hidden" name="action_type" value="delete">
-                                <input type="hidden" name="id" value="<?= \$row['id'] ?>">
-                                <button type="submit" class="btn btn-sm btn-outline-danger ms-1">Hapus</button>
-                            </form>
+                            <button class="btn btn-sm btn-outline-danger ms-1"
+                                    hx-post="?act={$folder_name}/{$file_name}" 
+                                    hx-vals='{"action_type": "delete", "id": "<?= \$row[\'id\'] ?>"}'
+                                    hx-target="#crud-alert"
+                                    hx-confirm="Yakin ingin menghapus data ini?">
+                                Hapus
+                            </button>
                         </td>
                     </tr>
                     <?php 
