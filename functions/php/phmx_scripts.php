@@ -9,5 +9,14 @@ function load_phmx_scripts() {
     // Skrip routing utama dihapus karena digantikan HTML5 History API (HTMX)
     // Jika Anda punya skrip JS tambahan di masa depan, tambahkan di sini:
     // echo "<script src=\"functions/js/utilities.js?v={$v}\"></script>\n";
+    // Injeksi otomatis CSRF Token ke setiap HTMX Request (termasuk button, anchor, dll)
+    echo "<script>
+        document.body.addEventListener('htmx:configRequest', function(evt) {
+            var csrfToken = document.querySelector('meta[name=\"csrf-token\"]');
+            if (csrfToken) {
+                evt.detail.headers['X-CSRF-Token'] = csrfToken.content;
+            }
+        });
+    </script>\n";
 }
 ?>
