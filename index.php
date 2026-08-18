@@ -10,6 +10,7 @@ phmx_setup('welcome');
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="<?= $_SESSION['csrf_token'] ?? '' ?>">
     <title>PHMX Framework</title>
     <!-- Base URL sangat penting untuk SPA dengan HTML5 History API -->
     <base href="<?= $base_url ?>">
