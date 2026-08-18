@@ -29,10 +29,7 @@ if (session_status() === PHP_SESSION_NONE) {
                         <span class="nav-link text-light me-3">Halo, <strong><?= htmlspecialchars($_SESSION['fullname'] ?? 'User') ?></strong></span>
                     </li>
                     <li class="nav-item">
-                        <form hx-post="?act=auth/logout" hx-target="#global-alert" hx-swap="innerHTML" class="m-0 p-0">
-                            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-                            <button type="submit" class="btn btn-outline-danger btn-sm">Logout</button>
-                        </form>
+                        <button class="btn btn-outline-danger btn-sm" hx-post="?act=auth/logout" hx-target="#global-alert" hx-swap="innerHTML">Logout</button>
                     </li>
                 <?php else: ?>
                     <li class="nav-item">
