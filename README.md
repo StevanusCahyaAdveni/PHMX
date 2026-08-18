@@ -178,9 +178,9 @@ Anda dan pengguna Anda tidak bisa mengakses file PHP di dalam `pages/` atau `act
 ### 2. Auto-Injection CSRF (Zero-Boilerplate)
 Framework ini menerapkan **Synchronizer Token Pattern** untuk menangkis serangan *Cross-Site Request Forgery*.
 - Setiap *session* memiliki satu `csrf_token` rahasia (dihasilkan oleh `config.php`).
-- **Keajaiban Output Buffering:** Setiap kali aplikasi merender halaman yang berisi tag `<form>`, mesin inti `htmx_request.php` akan secara **gaib/otomatis** menyisipkan `<input type="hidden" name="csrf_token">` ke dalam form tersebut. Anda tidak perlu mengetik satu kode perlindungan pun!
-- **Hukum Ketat:** Karena mesin auto-injeksi ini bekerja dengan mencari tag `<form>`, **JANGAN PERNAH** membuat tombol hapus/simpan (`hx-post`/`hx-delete`) menggunakan sekadar tag `<button>` atau `<a>` biasa. Anda **WAJIB** membungkus aksi tersebut dengan tag `<form>` agar token CSRF dapat disisipkan.
-- **Pengecualian:** Jika Anda membuat form di luar arsitektur pemanggilan `pages/` (seperti di file `navbar.php`), Anda harus mengetikkan token tersebut secara manual: `<input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">`.
+- **Keajaiban Output Buffering & Global Header:** Dulu, Anda wajib membungkus semuanya dalam `<form>`. **SEKARANG TIDAK LAGI!** Mesin otomatis akan menyisipkan `<input type="hidden" name="csrf_token">` pada `<form>` (sebagai *fallback*), **DAN** menyuntikkan token tersebut secara global melalui HTTP Header (`X-CSRF-Token`) untuk *setiap* panggilan HTMX!
+- **Hukum Bebas:** Anda kini sepenuhnya bebas membuat tombol hapus (`hx-post` / `hx-delete`) menggunakan tag `<button>` sederhana tanpa perlu membungkusnya dengan `<form>`! Keamanan tetap terjaga di belakang layar.
+- **Pengecualian:** Jika Anda membuat form/request tradisional (tanpa HTMX) di luar arsitektur `pages/`, barulah Anda harus mengetikkan token secara manual: `<input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">`.
 
 ---
 
