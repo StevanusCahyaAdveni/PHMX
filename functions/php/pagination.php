@@ -26,7 +26,7 @@ function generatePagination($totalData, $limit, $currentPage, $baseUrlHash)
     $buildUrl = function($page) use ($baseUrlHash, $queryParams) {
         $queryParams['page'] = $page;
         $queryStr = http_build_query($queryParams);
-        return "#" . ltrim($baseUrlHash, '#') . "?" . $queryStr;
+        return "" . ltrim($baseUrlHash, '') . "?" . $queryStr;
     };
 
     $html = '<nav aria-label="Page navigation"><ul class="pagination justify-content-center mb-0">';
