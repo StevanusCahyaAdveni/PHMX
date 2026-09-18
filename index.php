@@ -12,16 +12,27 @@ phmx_setup('welcome');
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="<?= $_SESSION['csrf_token'] ?? '' ?>">
     <title>PHMX Framework</title>
+    <!-- Favicon / Logo Browser Tab -->
+    <link rel="icon" type="image/svg+xml" href="assets/images/logo/phmx-mark.svg">
+    <link rel="alternate icon" type="image/png" href="assets/images/logo/phmx-logo.png">
     <!-- Base URL sangat penting untuk SPA dengan HTML5 History API -->
     <base href="<?= $base_url ?>">
     
+    <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
 
     <!-- HTMX CDN  -->
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.10/dist/htmx.js"></script>
-    
-    <!-- SweetAlert2 CDN untuk Notifikasi Toast -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- NProgress CDN untuk Top Progress Bar -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
+
+    <!-- Silent Login (Remember Me) Detection -->
+    <script>
+        const PHMX_IS_LOGGED_IN = <?= isset($_SESSION['user_id']) ? 'true' : 'false' ?>;
+    </script>
+    <script src="assets/js/auth.js"></script>
 
     <!-- Bootstrap JS Bundle (includes Popper) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>

@@ -17,6 +17,17 @@ function load_phmx_scripts() {
                 evt.detail.headers['X-CSRF-Token'] = csrfToken.content;
             }
         });
+        
+        // Integrasi Top Progress Bar (NProgress)
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            NProgress.start();
+        });
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            NProgress.done();
+        });
+        document.body.addEventListener('htmx:historyRestore', function(evt) {
+            NProgress.done();
+        });
     </script>\n";
 }
 ?>

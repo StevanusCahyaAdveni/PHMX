@@ -91,7 +91,11 @@ function paginationQuery($con, $sql, $params = [], $types = "", $limit = 5, $bas
     $offset = ($page - 1) * $limit;
 
     // 1. Hitung total baris menggunakan Subquery
-    $countSql = "SELECT COUNT(*) as total FROM ($sql) as _count_table";
+    // OPTIMASI: Hapus klausa ORDER BY di akhir query karena sorting tidak berguna untuk COUNT
+    // dan sangat membebani performa database jika datanya ribuan.
+    $sqlForCount = preg_replace('/\s+ORDER\s+BY\s+.*$/is', '', $sql);
+    $countSql = "SELECT COUNT(*) as total FROM ($sqlForCount) as _count_table";
+    
     $countQuery = querySecure($con, $countSql, $params, $types);
     $totalRow = mysqli_fetch_assoc($countQuery);
     $totalData = $totalRow['total'];

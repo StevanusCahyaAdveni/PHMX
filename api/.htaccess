@@ -1,0 +1,13 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Pastikan Authorization Header diteruskan ke PHP
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Abaikan file dan folder nyata jika memang ada
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Arahkan semua request di dalam folder api/ ke index.php di dalam folder api/
+    RewriteRule ^(.*)$ index.php?endpoint=$1 [QSA,L]
+</IfModule>

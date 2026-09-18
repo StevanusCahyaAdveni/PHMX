@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 125" width="100%" height="100%">
+  <!-- Origami Geometric P - Laravel Inspired Clean Minimalist Mark -->
+  <g id="phmx-mark">
+    <!-- Top Apex Facet (Bright Coral) -->
+    <polygon points="52,12 88,34 72,45 52,28" fill="#FF5757" />
+    
+    <!-- Right Outer Facet (Vibrant Scarlet) -->
+    <polygon points="88,34 88,62 70,78 70,46" fill="#FF2D55" />
+    
+    <!-- Inner Loop Return Facet (Rich Crimson) -->
+    <polygon points="70,78 52,64 52,28 72,45" fill="#E11D48" />
+
+    <!-- Left Upper Stem (Medium Ruby) -->
+    <polygon points="32,28 52,12 52,58 32,74" fill="#D91B42" />
+
+    <!-- Left Lower Stem (Deep Wine / Shadow) -->
+    <polygon points="32,74 52,58 52,108 32,124" fill="#9F1239" />
+  </g>
+</svg>

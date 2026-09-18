@@ -40,7 +40,7 @@ function htmxRedirectWithMessage($hash, $message, $type = 'success', $delay = 15
                 let keep = {$keepJson};
                 document.querySelectorAll('form').forEach(f => {
                     Array.from(f.elements).forEach(el => {
-                        if (el.name && !keep.includes(el.name)) {
+                        if (el.name && !keep.includes(el.name) && el.type !== 'hidden') {
                             if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
                             else el.value = '';
                         }
@@ -84,7 +84,7 @@ function htmxMessage($message, $type = 'danger', $keepFields = [])
                 let keep = {$keepJson};
                 document.querySelectorAll('form').forEach(f => {
                     Array.from(f.elements).forEach(el => {
-                        if (el.name && !keep.includes(el.name)) {
+                        if (el.name && !keep.includes(el.name) && el.type !== 'hidden') {
                             if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
                             else el.value = '';
                         }
@@ -101,6 +101,40 @@ function htmxMessage($message, $type = 'danger', $keepFields = [])
                 Toast.fire({
                   icon: '{$icon}',
                   title: '{$message}'
+                });
+            })();
+          </script>";
+    exit;
+}
+
+/**
+ * HTMX Khusus: Reload Halaman Saat Ini dengan Pesan
+ * Berguna untuk mempertahankan parameter URL (seperti ?page=4 atau ?search=xxx) 
+ * setelah melakukan action seperti Update atau Delete.
+ */
+function htmxReloadWithMessage($message, $type = 'success', $delay = 1500)
+{
+    $icon = ($type === 'danger') ? 'error' : $type;
+    
+    echo "<script>
+            (function(){
+                const Toast = Swal.mixin({
+                  toast: true,
+                  position: 'bottom-end',
+                  showConfirmButton: false,
+                  timer: {$delay},
+                  timerProgressBar: true,
+                  didOpen: (toast) => {
+                    toast.onmouseenter = Swal.stopTimer;
+                    toast.onmouseleave = Swal.resumeTimer;
+                  }
+                });
+                Toast.fire({
+                  icon: '{$icon}',
+                  title: '{$message}'
+                }).then(() => {
+                    // Reload halaman saat ini beserta seluruh query string-nya (?page=..., dll)
+                    htmx.ajax('GET', window.location.href, {target: 'body'});
                 });
             })();
           </script>";

@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD COLUMN `api_token` VARCHAR(64) UNIQUE NULL AFTER `password`;

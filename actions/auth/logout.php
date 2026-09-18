@@ -11,6 +11,11 @@ if (ini_get("session.use_cookies")) {
         $params["secure"], $params["httponly"]
     );
 }
+// Bersihkan kredensial Remember Me dari LocalStorage
+echo "<script>
+    localStorage.removeItem('phmx_email');
+    localStorage.removeItem('phmx_pwd');
+</script>";
 
 htmxRedirectWithMessage('welcome', 'Anda telah berhasil logout!', 'success');
 exit;

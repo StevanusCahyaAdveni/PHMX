@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!is_dir($actions_dir)) mkdir($actions_dir, 0777, true);
     
     if ($generate_api) {
-        $api_dir = __DIR__ . '/../api/' . $folder_name;
+        $api_dir = __DIR__ . '/../api/methods/' . $folder_name;
         if (!is_dir($api_dir)) mkdir($api_dir, 0777, true);
     }
     
@@ -209,7 +209,7 @@ function generatePageContent($file_name, $folder_name, $table_name, $col_names, 
                             </button>
                             <button class="btn btn-sm btn-outline-danger ms-1"
                                     hx-post="?act={$folder_name}/{$file_name}" 
-                                    hx-vals='{"action_type": "delete", "id": "<?= \$row[\'id\'] ?>"}'
+                                    hx-vals='{"action_type": "delete", "id": "<?= \$row['id'] ?>"}'
                                     hx-target="#crud-alert"
                                     hx-confirm="Yakin ingin menghapus data ini?">
                                 Hapus
@@ -352,7 +352,7 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         
         if (\$success) {
-            htmxRedirectWithMessage('{$folder_name}/{$file_name}', 'Berhasil menambahkan data!', 'success');
+            htmxReloadWithMessage('Data berhasil ditambahkan!', 'success');
         } else {
             htmxMessage('Gagal menambahkan data.', 'danger');
         }
@@ -375,7 +375,7 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         
         if (\$success) {
-            htmxRedirectWithMessage('{$folder_name}/{$file_name}', 'Berhasil memperbarui data!', 'success');
+            htmxReloadWithMessage('Data berhasil diperbarui!', 'success');
         } else {
             htmxMessage('Gagal memperbarui data.', 'danger');
         }
@@ -394,7 +394,7 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
         \$success = executeSecure(\$con, "DELETE FROM {$table_name} WHERE id = ?", [\$id], 's');
         
         if (\$success) {
-            htmxRedirectWithMessage('{$folder_name}/{$file_name}', 'Data berhasil dihapus!', 'success');
+            htmxReloadWithMessage('Data berhasil dihapus!', 'success');
         } else {
             htmxMessage('Gagal menghapus data.', 'danger');
         }
@@ -407,10 +407,9 @@ PHP;
 function generateApiContent($table_name, $col_names) {
     return <<<PHP
 <?php
-// api/{$table_name}.php
-header("Content-Type: application/json");
-require_once __DIR__ . '/../../config.php';
+// api/methods/{$table_name}.php
 
+global \$con;
 \$method = \$_SERVER['REQUEST_METHOD'];
 \$id = \$_GET['id'] ?? null;
 
@@ -419,18 +418,22 @@ switch (\$method) {
         if (\$id) {
             \$res = querySecure(\$con, "SELECT * FROM {$table_name} WHERE id = ?", [\$id], 's');
             \$data = mysqli_fetch_assoc(\$res);
-            echo json_encode(['status' => 'success', 'data' => \$data]);
+            if (\$data) {
+                response(true, 'Data fetched successfully', \$data);
+            } else {
+                response(false, 'Data not found');
+            }
         } else {
             \$res = querySecure(\$con, "SELECT * FROM {$table_name} ORDER BY created_at DESC");
             \$data = [];
             while (\$r = mysqli_fetch_assoc(\$res)) {
                 \$data[] = \$r;
             }
-            echo json_encode(['status' => 'success', 'data' => \$data]);
+            response(true, 'Data fetched successfully', \$data);
         }
         break;
     default:
-        echo json_encode(['status' => 'error', 'message' => 'Method not allowed']);
+        response(false, 'Method not allowed');
         break;
 }
 ?>

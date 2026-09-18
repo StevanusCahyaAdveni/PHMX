@@ -17,6 +17,10 @@
                             <label class="form-label text-muted small fw-bold">Password</label>
                             <input type="password" name="password" class="form-control" required>
                         </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="rememberMe" name="remember">
+                            <label class="form-check-label text-muted small" for="rememberMe">Ingat Saya</label>
+                        </div>
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary">Login</button>
                             <a href="auth/register" class="btn btn-outline-secondary">Belum punya akun? Daftar</a>

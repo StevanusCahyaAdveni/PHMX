@@ -1,31 +1,66 @@
 ---
 name: phmx_framework
-description: "Aturan utama, konsep routing, dan daftar fungsi bawaan saat membangun aplikasi web menggunakan framework kustom PHMX."
+description: "Aturan utama, konsep routing, REST API Gateway, autentikasi token/session, rate limiting, dan daftar fungsi bawaan saat membangun aplikasi web/API menggunakan framework kustom PHMX."
 ---
 
-# PHMX Framework Guidelines
+# PHMX Framework Guidelines & Architecture
 
-## Arsitektur & Aturan Ketat
-1. **Pemisahan Logika**: 
-   - Folder `pages/`: HANYA untuk UI (HTML) dan Query SELECT. Dilarang menaruh logika INSERT/UPDATE/DELETE di sini.
-   - Folder `actions/`: HANYA untuk memproses data (POST/PUT/DELETE).
-2. **HTMX Integration & Navigasi**: Framework kini menggunakan `hx-boost="true"` pada `<body>` untuk SPA Navigation (Auto Root / Slash URL). Jangan gunakan `#hash` untuk link, cukup gunakan relative url (misal `href="users/user-management"`).
-3. **Routing & Middleware**: Routing ditangani secara dinamis melalui `.htaccess` ke `index.php?hal=...`. Middleware dikonfigurasi secara terpusat di `middleware/routes.php` menggunakan pencocokan pola `fnmatch()`.
-4. **Action & Form**: Form action harus merujuk ke aksi dengan `hx-post="?act=..."`, menggunakan `hx-target` dan `hx-swap="innerHTML"`.
+## 1. Arsitektur & Aturan Ketat
+1. **Pemisahan Tiga Lapisan (Pages, Actions, APIs)**:
+   - **`pages/`**: HANYA untuk tampilan antarmuka (HTML/UI) dan pembacaan data (`SELECT`). Dilarang keras menaruh query manipulasi data (`INSERT`, `UPDATE`, `DELETE`) di folder ini.
+   - **`actions/`**: HANYA untuk memproses data dari form web / HTMX (`POST`, `PUT`, `DELETE`). Gunakan helper pesan HTMX seperti `htmxMessage()`, `htmxReloadWithMessage()`, atau `htmxRedirectWithMessage()`.
+   - **`api/methods/`**: HANYA untuk *endpoint* REST API murni (Mobile/JSON). Setiap file di folder ini cukup menggunakan fungsi `response($success, $message, $data)`.
+2. **SPA Navigasi & HTMX**:
+   - `index.php` menggunakan `hx-boost="true"` pada tag `<body>` untuk mode SPA tanpa reload (Slash URL / HTML5 History API).
+   - Gunakan path URL relatif (contoh: `<a href="users/user-management">`).
+   - Form Web harus diarahkan ke action dengan pola `hx-post="?act=..."`, serta `hx-target` dan `hx-swap="innerHTML"`.
+3. **REST API Gateway (`api/index.php`)**:
+   - Semua panggilan API diarahkan melalui `.htaccess` ke `api/index.php?endpoint=...`.
+   - Mendukung CORS preflight (`OPTIONS`), penerusan header `Authorization`, dan validasi CSRF untuk request web/session.
+   - Mengembalikan output berformat standar JSON: `{ "success": bool, "message": string, "data": any }`.
 
-## Daftar Fungsi Bawaan (Wajib Digunakan)
-- `sani($data)`: Wajib untuk sanitasi input $_POST / $_GET.
-- `querySecure($con, $sql, $params, $types)`: Mengeksekusi prepared statement (SELECT).
-- `executeSecure($con, $sql, $params, $types)`: Mengeksekusi prepared statement (INSERT/UPDATE/DELETE).
-- `generate_uuid()`: Menghasilkan UUID 36 karakter untuk primary key.
-- `htmxRedirectWithMessage($url, $message, $type)`: Redirect SPA ramah HTMX. Target redirect adalah `body` untuk mengganti keseluruhan halaman, menghindari nested navbar.
-- `paginationQuery($con, $sql, $params, $types, $limit, $baseUrl)`: Helper paginasi.
+---
 
-## CLI & Generasi
-- Gunakan `php phmx make:crud <folder>/<file>` untuk scaffolding dasar.
-- Gunakan `php phmx migrate` untuk mengeksekusi semua SQL di `database/`.
+## 2. Sistem Middleware & Rute Terpusat (`middleware/routes.php`)
+Konfigurasi middleware dikelola di satu tempat (`middleware/routes.php`) dengan pencocokan pola `fnmatch()`:
+- **Rute Web (Pages/Actions)**:
+  - `'users/user-management' => ['auth']` (Memerlukan session web aktif).
+  - `'auth/login' => ['throttle:5,1']` (Rate limit 5 percobaan per 1 menit).
+- **Rute API**:
+  - `'api/auth/mobile_login' => ['throttle:10,1']` (Rate limit endpoint login mobile).
+  - `'api/auth/mobile_logout' => ['api_auth']` (Wajib menyertakan Bearer Token).
+  - `'api/users/*' => ['api_auth']` (Melindungi semua endpoint API pengguna dengan Bearer Token).
 
-## Standar Keamanan & CSRF (Sangat Penting!)
-1. **Auto-Injector CSRF**: Framework ini menggunakan Output Buffering di `htmx_request.php` untuk menyisipkan `<input type="hidden" name="csrf_token">` ke dalam semua tag `<form>` secara otomatis.
-2. **Wajib Menggunakan Form**: Jangan PERNAH membuat tombol aksi manipulasi data (POST/DELETE/PUT) yang berdiri sendiri (`<button hx-post="...">`). Semua tombol aksi **wajib** dibungkus dengan `<form>` agar sistem Auto-Injector CSRF dapat bekerja.
-3. **Pengecualian File Eksternal**: Jika membuat form di luar folder `pages/` (misalnya di `navbar.php` yang dipanggil langsung via `hx-get`), Auto-Injector tidak akan berjalan. Anda wajib menyisipkan token manual: `<input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">`.
+---
+
+## 3. Sistem Autentikasi (Web vs Mobile)
+1. **Web Session & Remember Me (Silent Login)**:
+   - Login web menggunakan session PHP (`$_SESSION['user_id']`).
+   - Fitur *Remember Me* memanfaatkan `localStorage` di client (`assets/js/auth.js`) dan endpoint `api/methods/auth/silent_login.php`. Sesi diperbarui secara senyap jika session server habis tanpa menendang user dari halaman aktif.
+2. **Mobile & External API (Bearer Token)**:
+   - Header: `Authorization: Bearer <token>`.
+   - Endpoint login mobile: `api/methods/auth/mobile_login.php` menghasilkan token acak aman 64-karakter (`bin2hex(random_bytes(32))`) yang disimpan di tabel `users.api_token`.
+   - Middleware `middleware/api_auth.php` memverifikasi token dan menyediakan data user login di `$GLOBALS['auth_user']`.
+
+---
+
+## 4. Daftar Fungsi Bawaan (Core Helpers)
+Termuat otomatis melalui `functions/index.php`:
+- `sani($data)`: Sanitasi wajib untuk input `$_POST` / `$_GET` dari XSS.
+- `querySecure($con, $sql, $params, $types)`: Eksekusi prepared statement untuk query `SELECT`.
+- `executeSecure($con, $sql, $params, $types)`: Eksekusi prepared statement untuk `INSERT`, `UPDATE`, `DELETE`.
+- `response($success, $message, $data)`: Format respons standar REST API (hanya di konteks API).
+- `generate_uuid()`: Menghasilkan UUID v4 36-karakter untuk Primary Key.
+- `htmxRedirectWithMessage($url, $message, $type)`: Redirect SPA HTMX dengan notifikasi Toast/Alert.
+- `htmxReloadWithMessage($message, $type)`: Refresh data di halaman aktif sambil menampilkan pesan sukses.
+- `htmxMessage($message, $type)`: Menampilkan pesan alert tanpa reload.
+- `paginationQuery($con, $sql, $params, $types, $limit, $baseUrl)`: Helper paginasi cerdas 1 baris.
+- `generateSearchForm($inputs, $button)`: Helper instan pembuat form pencarian multi-kolom.
+
+---
+
+## 5. CLI & Database Migrations
+- `php phmx`: Menampilkan bantuan dan daftar perintah CLI framework.
+- `php phmx make:crud <folder>/<file>`: Menghasilkan kerangka kerja (*scaffolding*) CRUD.
+- `php phmx migrate`: Menjalankan semua file migrasi `.sql` di folder `database/` secara berurutan. Format file: `YYYYMMDD-nama_migrasi.sql` atau `YYYYMMDDHHIISS-nama_tabel.sql`.
+- **CRUD Generator Web (`/generate-crud`)**: Menghasilkan file halaman (`pages/`), logika aksi (`actions/`), API RESTful (`api/methods/`), dan migrasi tabel SQL secara otomatis.

@@ -64,7 +64,7 @@
                     $sql = "SELECT * FROM users WHERE 1 = 1 $whereClause ORDER BY created_at DESC";
                     
                     // EKSEKUSI AJAIB (1 Baris)
-                    $paginated = paginationQuery($con, $sql, $params, $types, 5, 'users/management');
+                    $paginated = paginationQuery($con, $sql, $params, $types, 5, 'users/user-management');
                     $users = $paginated['data'];
                     
                     if ($users && mysqli_num_rows($users) > 0) {

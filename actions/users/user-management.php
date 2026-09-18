@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         
         if ($success) {
-            htmxRedirectWithMessage('users/user-management', 'Berhasil menambahkan pengguna baru!', 'success');
+            htmxReloadWithMessage('Berhasil menambahkan pengguna baru!', 'success');
         } else {
             htmxMessage('Gagal menambahkan pengguna.', 'danger');
         }
@@ -49,38 +49,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = sani($_POST['username'] ?? '');
         $email = sani($_POST['email'] ?? '');
         $telp_number = sani($_POST['telp_number'] ?? '');
-        $role = sani($_POST['role'] ?? 'admin');
-        $password = $_POST['password'] ?? ''; // Boleh kosong
+        $role = sani($_POST['role'] ?? '');
+        $password = $_POST['password'] ?? '';
         
-        if (empty($id) || empty($fullname) || empty($username) || empty($email)) {
-            htmxMessage('ID, Nama, Username, dan Email wajib diisi!', 'danger');
-        }
-        
-        // Cek duplikat tapi exlcude user ini sendiri
-        $check = querySecure($con, "SELECT id FROM users WHERE (username = ? OR email = ?) AND id != ?", [$username, $email, $id], 'sss');
-        if ($check && mysqli_num_rows($check) > 0) {
-            htmxMessage('Username atau Email sudah digunakan pengguna lain!', 'warning');
+        if (empty($id) || empty($fullname) || empty($username) || empty($email) || empty($telp_number) || empty($role)) {
+            htmxMessage('Semua kolom wajib diisi kecuali password.', 'danger');
         }
         
         if (!empty($password)) {
-            // Update beserta password
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
             $success = executeSecure($con, 
-                "UPDATE users SET fullname=?, username=?, email=?, telp_number=?, role=?, password=? WHERE id=?",
+                "UPDATE users SET fullname = ?, username = ?, email = ?, telp_number = ?, role = ?, password = ? WHERE id = ?",
                 [$fullname, $username, $email, $telp_number, $role, $hashedPassword, $id],
                 'sssssss'
             );
         } else {
-            // Update tanpa mengubah password
             $success = executeSecure($con, 
-                "UPDATE users SET fullname=?, username=?, email=?, telp_number=?, role=? WHERE id=?",
+                "UPDATE users SET fullname = ?, username = ?, email = ?, telp_number = ?, role = ? WHERE id = ?",
                 [$fullname, $username, $email, $telp_number, $role, $id],
                 'ssssss'
             );
         }
         
         if ($success) {
-            htmxRedirectWithMessage('users/user-management', 'Berhasil memperbarui data pengguna!', 'success');
+            htmxReloadWithMessage('Data pengguna berhasil diperbarui!', 'success');
         } else {
             htmxMessage('Gagal memperbarui pengguna.', 'danger');
         }
@@ -93,17 +85,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = sani($_POST['id'] ?? '');
         
         if (empty($id)) {
-            htmxMessage('ID Pengguna tidak valid!', 'danger');
+            htmxMessage('ID pengguna tidak valid.', 'danger');
         }
         
+        // Mencegah user menghapus dirinya sendiri
         if ($id === $_SESSION['user_id']) {
-            htmxMessage('Anda tidak dapat menghapus akun Anda sendiri yang sedang login!', 'warning');
+            htmxMessage('Anda tidak dapat menghapus akun Anda sendiri!', 'danger');
         }
         
         $success = executeSecure($con, "DELETE FROM users WHERE id = ?", [$id], 's');
         
         if ($success) {
-            htmxRedirectWithMessage('users/user-management', 'Pengguna berhasil dihapus!', 'success');
+            htmxReloadWithMessage('Pengguna berhasil dihapus!', 'success');
         } else {
             htmxMessage('Gagal menghapus pengguna.', 'danger');
         }

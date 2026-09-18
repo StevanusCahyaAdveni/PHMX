@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 80" width="100%" height="100%">
+  <!-- Mark (Scaled & Positioned) -->
+  <g transform="translate(10, 4) scale(0.55)">
+    <!-- Top Apex Facet (Bright Coral) -->
+    <polygon points="52,12 88,34 72,45 52,28" fill="#FF5757" />
+    
+    <!-- Right Outer Facet (Vibrant Scarlet) -->
+    <polygon points="88,34 88,62 70,78 70,46" fill="#FF2D55" />
+    
+    <!-- Inner Loop Return Facet (Rich Crimson) -->
+    <polygon points="70,78 52,64 52,28 72,45" fill="#E11D48" />
+
+    <!-- Left Upper Stem (Medium Ruby) -->
+    <polygon points="32,28 52,12 52,58 32,74" fill="#D91B42" />
+
+    <!-- Left Lower Stem (Deep Wine / Shadow) -->
+    <polygon points="32,74 52,58 52,108 32,124" fill="#9F1239" />
+  </g>
+
+  <!-- Typography -->
+  <text x="82" y="52" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="800" font-size="38" letter-spacing="3" fill="#18181B">
+    PHMX
+  </text>
+</svg>
