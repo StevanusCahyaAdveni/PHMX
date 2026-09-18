@@ -107,7 +107,7 @@ POST /api/auth/mobile_login
 Content-Type: application/json
 
 {
-  "email": "evanlum4jang@gmail.com",
+  "email": "admin@gmail.com",
   "password": "password123"
 }
 ```
@@ -123,7 +123,7 @@ Content-Type: application/json
       "id": "975b6fcd-4b7c-4244-8a72-595ae836b378",
       "fullname": "Stevanus Cahya Adveni",
       "username": "Stevanus",
-      "email": "evanlum4jang@gmail.com",
+      "email": "admin@gmail.com",
       "role": "admin"
     }
   }
