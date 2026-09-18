@@ -8,25 +8,25 @@
 
 ---
 
-## 🌟 Keunggulan Utama (Key Features)
+## Keunggulan Utama
 
-1. **SPA Tanpa Reload (Single Page Application)**: Navigasi antar halaman secepat kilat menggunakan *Slash URL / Auto-Root* via HTML5 History API dan `hx-boost="true"` dari HTMX.
+1. **SPA Tanpa Reload (Single Page Application)**: Navigasi antar halaman menggunakan *Slash URL / Auto-Root* via HTML5 History API dan `hx-boost="true"` dari HTMX.
 2. **REST API Gateway Murni (`/api/`)**: Arsitektur API mandiri dengan standarisasi respons JSON `response($success, $message, $data)`, penanganan CORS, dan pemisahan logika di `api/methods/`.
 3. **Autentikasi Ganda (Session & Bearer Token)**:
    - **Web Client**: Autentikasi berbasis session dengan fitur *Remember Me (Silent Login)* via `localStorage` yang otomatis memperbarui sesi tanpa mengganggu navigasi pengguna.
    - **Mobile Client (Android/iOS)**: Autentikasi modern berbasis **Bearer Token** (`Authorization: Bearer <token>`) yang aman dan *stateless*.
 4. **Rate Limiting / Throttle Middleware**: Proteksi dari serangan *brute force* dan spam request menggunakan middleware terpusat (`throttle:max_attempts,decay_minutes`).
 5. **Auto-Routing & Middleware Terpusat**: Pengaturan rute halaman, aksi web, dan REST API dikelola di satu tempat (`middleware/routes.php`) menggunakan pola wildcard `fnmatch()`.
-6. **Keamanan Bawaan (Enterprise-Ready)**:
+6. **Keamanan Bawaan**:
    - Proteksi otomatis dari SQL Injection (`querySecure()` & `executeSecure()`).
    - Proteksi XSS otomatis (`sani()`).
    - Proteksi CSRF otomatis (*Zero-Boilerplate Auto-Injection*).
-7. **CRUD & API Generator (Web & CLI)**: Buat modul CRUD web, API JSON, dan file migrasi database secara otomatis dalam hitungan detik.
+7. **CRUD & API Generator (Web & CLI)**: Pembuatan modul CRUD web, API JSON, dan file migrasi database secara otomatis dalam hitungan detik.
 8. **Magic Pagination & Multi-Column Search**: Paginasi dan form pencarian multi-kolom hanya dengan 1 baris kode.
 
 ---
 
-## 🚀 Instalasi & Memulai Proyek
+## Instalasi & Memulai Proyek
 
 1. Letakkan folder proyek di web server lokal Anda (misal: `d:/xampp/htdocs/PersonalProject/PHMX`).
 2. Buka file **`config.php`** dan sesuaikan konfigurasi database:
@@ -44,16 +44,16 @@
 
 ---
 
-## 🗺️ Arsitektur Tiga Lapisan (Architecture Layers)
+## Arsitektur Tiga Lapisan
 
-PHMX memisahkan kode menjadi 3 lapisan yang sangat bersih dan terisolasi:
+PHMX memisahkan kode menjadi 3 lapisan yang terisolasi:
 
 ```
-├── pages/         -> HANYA untuk tampilan UI (HTML) & query SELECT
-├── actions/       -> HANYA untuk pemrosesan form Web/HTMX (POST/PUT/DELETE)
+├── pages/         -> Tampilan UI (HTML) & query SELECT
+├── actions/       -> Pemrosesan form Web/HTMX (POST/PUT/DELETE)
 ├── api/
 │   ├── index.php  -> API Gateway (Header, CORS, CSRF, & Middleware Runner)
-│   └── methods/   -> HANYA untuk logika REST API (Output JSON via response())
+│   └── methods/   -> Logika REST API (Output JSON via response())
 ├── middleware/    -> Layer keamanan (auth, api_auth, throttle, role)
 ├── database/      -> File migrasi SQL terstruktur
 └── assets/        -> File statis (CSS, JS, Images, Logo)
@@ -61,16 +61,16 @@ PHMX memisahkan kode menjadi 3 lapisan yang sangat bersih dan terisolasi:
 
 ---
 
-## ⚡ 1. Navigasi SPA & Pemrosesan Data Web (HTMX)
+## 1. Navigasi SPA & Pemrosesan Data Web (HTMX)
 
 ### Navigasi Halaman (Pages)
-Semua link `<a>` otomatis diubah menjadi request SPA tanpa reload halaman berkat atribut `hx-boost="true"` di `index.php`:
+Semua link `<a>` otomatis diproses menjadi request SPA tanpa reload halaman berkat atribut `hx-boost="true"` di `index.php`:
 ```html
 <a href="users/user-management">Manajemen Pengguna</a>
 ```
 
 ### Pemrosesan Data (Actions)
-Form web wajib mengirim request ke action menggunakan `hx-post="?act=..."`:
+Form web mengirim request ke action menggunakan `hx-post="?act=..."`:
 ```html
 <!-- pages/users/add.php -->
 <form hx-post="?act=users/save" hx-target="#alert-box" hx-swap="innerHTML">
@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 ---
 
-## 📱 2. REST API Gateway & Mobile Client (Bearer Token)
+## 2. REST API Gateway & Mobile Client (Bearer Token)
 
 Semua permintaan API diakses melalui rute `/api/{endpoint}`.
 
@@ -144,7 +144,7 @@ Authorization: Bearer 9c27ece2bc88aebb857a853dd80748899b1be387c2e13f36ca3df96e61
 ```
 
 ### Menulis File API Baru di `api/methods/`
-Cukup gunakan fungsi bawaan `response($success, $message, $data)`:
+Gunakan fungsi bawaan `response($success, $message, $data)`:
 ```php
 // api/methods/products/list.php
 $res = querySecure($con, "SELECT * FROM products ORDER BY created_at DESC");
@@ -158,7 +158,7 @@ response(true, 'Data produk berhasil diambil', $products);
 
 ---
 
-## 🛡️ 3. Konfigurasi Rute & Middleware Terpusat (`middleware/routes.php`)
+## 3. Konfigurasi Rute & Middleware Terpusat (`middleware/routes.php`)
 
 Daftarkan proteksi rute Web maupun API di dalam file `middleware/routes.php`:
 
@@ -180,17 +180,17 @@ return [
 
 ---
 
-## 🔐 4. Remember Me (Silent Login) via `localStorage`
+## 4. Remember Me (Silent Login) via localStorage
 
-Fitur *Remember Me* tidak menggunakan cookie jangka panjang yang rentan, melainkan tersimpan aman di `localStorage` peramban client:
+Fitur Remember Me tersimpan di `localStorage` peramban client:
 1. Saat user mencentang *Remember Me* dan berhasil login, event `login-success` dipicu dan kredensial tersimpan di `localStorage`.
-2. Skrip client [`assets/js/auth.js`](file:///d:/xampp/htdocs/PersonalProject/PHMX/assets/js/auth.js) mendeteksi saat session PHP kedaluwarsa saat pengguna me-refresh halaman.
+2. Skrip client [`assets/js/auth.js`](file:///d:/xampp/htdocs/PersonalProject/PHMX/assets/js/auth.js) mendeteksi saat session PHP kedaluwarsa ketika pengguna me-refresh halaman.
 3. Skrip secara otomatis menembak `api/methods/auth/silent_login.php` di latar belakang untuk memperpanjang sesi tanpa perlu *redirect* atau mengganggu halaman yang sedang dibuka pengguna.
 4. Saat user menekan tombol Logout, event `logout-success` otomatis membersihkan `localStorage`.
 
 ---
 
-## 🛠️ 5. Daftar Fungsi Helper Bawaan
+## 5. Daftar Fungsi Helper Bawaan
 
 | Fungsi | Kegunaan | Contoh Pemakaian |
 |---|---|---|
@@ -207,13 +207,13 @@ Fitur *Remember Me* tidak menggunakan cookie jangka panjang yang rentan, melaink
 
 ---
 
-## 🤖 6. CRUD & REST API Generator
+## 6. CRUD & REST API Generator
 
 ### Web Generator (`/generate-crud`)
 1. Buka halaman `/generate-crud` di browser Anda.
 2. Masukkan nama folder, nama file, nama tabel, dan konfigurasi kolom.
 3. Centang opsi **"Generate REST API Endpoint (JSON)"** jika ingin membuat endpoint API secara bersamaan.
-4. Klik **Generate Module**. Sistem akan membuatkan file `pages/`, `actions/`, `api/methods/`, dan migrasi SQL `database/` secara otomatis!
+4. Klik **Generate Module**. Sistem akan membuatkan file `pages/`, `actions/`, `api/methods/`, dan migrasi SQL `database/` secara otomatis.
 
 ### CLI Runner (PHMX Artisan)
 ```bash
@@ -229,7 +229,7 @@ php phmx migrate
 
 ---
 
-## 🎨 7. Logo & Desain Identitas
+## 7. Logo & Desain Identitas
 
 Logo resmi PHMX Framework tersimpan di direktori [`assets/images/logo/`](file:///d:/xampp/htdocs/PersonalProject/PHMX/assets/images/logo):
 - `phmx-logo.png` & `phmx-logo.jpg`: Logo resolusi tinggi dengan emblem origami geometris.
