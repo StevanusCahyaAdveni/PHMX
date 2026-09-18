@@ -12,6 +12,7 @@ require_once __DIR__ . '/php/redirect.php';
 require_once __DIR__ . '/php/upload_file.php';
 require_once __DIR__ . '/php/pagination.php';
 require_once __DIR__ . '/php/search_form.php';
+require_once __DIR__ . '/php/web_push.php';
 
 
 // Jika Anda punya fungsi PHP lain di masa depan, include di sini:

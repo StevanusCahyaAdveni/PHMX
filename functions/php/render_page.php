@@ -3,7 +3,7 @@
  * Fungsi untuk me-render halaman (termasuk auto-inject CSRF)
  */
 function render_page($hal) {
-    global $con, $base_url;
+    global $con, $base_url, $pwa_enabled, $vapid_config;
     $file = __DIR__ . '/../../pages/' . $hal . '.php';
     
     if (file_exists($file)) {

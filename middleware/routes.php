@@ -20,5 +20,7 @@ return [
     'api/auth/silent_login'   => ['throttle:10,1'], // Background silent login dengan rate limit
     'api/auth/mobile_logout'  => ['api_auth'],      // Memerlukan Bearer Token
     'api/users/*'             => ['api_auth'],      // Semua API users dilindungi Bearer Token
+    'api/push/subscribe'      => ['throttle:30,1'], // Pendaftaran perangkat push
+    'api/push/send_test'      => ['throttle:10,1'], // Pengiriman tes notifikasi
 ];
 ?>

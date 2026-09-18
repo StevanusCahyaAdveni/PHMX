@@ -1,6 +1,6 @@
 ---
 name: phmx_framework
-description: "Aturan utama, konsep routing, REST API Gateway, autentikasi token/session, rate limiting, dan daftar fungsi bawaan saat membangun aplikasi web/API menggunakan framework kustom PHMX."
+description: "Aturan utama, konsep routing, REST API Gateway, autentikasi token/session, rate limiting, PWA, Web Push VAPID, dan daftar fungsi bawaan saat membangun aplikasi web/API menggunakan framework kustom PHMX."
 ---
 
 # PHMX Framework Guidelines & Architecture
@@ -18,6 +18,10 @@ description: "Aturan utama, konsep routing, REST API Gateway, autentikasi token/
    - Semua panggilan API diarahkan melalui `.htaccess` ke `api/index.php?endpoint=...`.
    - Mendukung CORS preflight (`OPTIONS`), penerusan header `Authorization`, dan validasi CSRF untuk request web/session.
    - Mengembalikan output berformat standar JSON: `{ "success": bool, "message": string, "data": any }`.
+4. **PWA & Web Push Notification (VAPID)**:
+   - Saklar di `config.php`: `$pwa_enabled = true / false`.
+   - Pasangan kunci VAPID P-256 dibuat otomatis melalui CLI: `php phmx vapid:generate`.
+   - Pengiriman notifikasi push langsung dari PHP menggunakan `sendWebPush($subscription, $payload)`.
 
 ---
 
@@ -30,6 +34,8 @@ Konfigurasi middleware dikelola di satu tempat (`middleware/routes.php`) dengan 
   - `'api/auth/mobile_login' => ['throttle:10,1']` (Rate limit endpoint login mobile).
   - `'api/auth/mobile_logout' => ['api_auth']` (Wajib menyertakan Bearer Token).
   - `'api/users/*' => ['api_auth']` (Melindungi semua endpoint API pengguna dengan Bearer Token).
+  - `'api/push/subscribe' => ['throttle:30,1']` (Pendaftaran endpoint push perangkat).
+  - `'api/push/send_test' => ['throttle:10,1']` (Pengujian pengiriman notifikasi).
 
 ---
 
@@ -49,6 +55,8 @@ Termuat otomatis melalui `functions/index.php`:
 - `sani($data)`: Sanitasi wajib untuk input `$_POST` / `$_GET` dari XSS.
 - `querySecure($con, $sql, $params, $types)`: Eksekusi prepared statement untuk query `SELECT`.
 - `executeSecure($con, $sql, $params, $types)`: Eksekusi prepared statement untuk `INSERT`, `UPDATE`, `DELETE`.
+- `sendWebPush($subscription, $payload, $config)`: Kirim Web Push Notification VAPID murni.
+- `generateVapidKeys()`: Helper pembuatan pasangan kunci VAPID P-256.
 - `response($success, $message, $data)`: Format respons standar REST API (hanya di konteks API).
 - `generate_uuid()`: Menghasilkan UUID v4 36-karakter untuk Primary Key.
 - `htmxRedirectWithMessage($url, $message, $type)`: Redirect SPA HTMX dengan notifikasi Toast/Alert.
@@ -61,6 +69,7 @@ Termuat otomatis melalui `functions/index.php`:
 
 ## 5. CLI & Database Migrations
 - `php phmx`: Menampilkan bantuan dan daftar perintah CLI framework.
+- `php phmx vapid:generate`: Membuat pasangan kunci VAPID baru dan otomatis menyimpannya ke `config.php`.
 - `php phmx make:crud <folder>/<file>`: Menghasilkan kerangka kerja (*scaffolding*) CRUD.
 - `php phmx migrate`: Menjalankan semua file migrasi `.sql` di folder `database/` secara berurutan. Format file: `YYYYMMDD-nama_migrasi.sql` atau `YYYYMMDDHHIISS-nama_tabel.sql`.
 - **CRUD Generator Web (`/generate-crud`)**: Menghasilkan file halaman (`pages/`), logika aksi (`actions/`), API RESTful (`api/methods/`), dan migrasi tabel SQL secara otomatis.

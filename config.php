@@ -38,4 +38,15 @@ if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(uniqid('phmx', true));
     }
 }
+
+// ==========================================
+// PWA & Web Push Notification Configuration
+// ==========================================
+$pwa_enabled = true; // true = Aktifkan PWA & Service Worker, false = Matikan
+
+$vapid_config = [
+    'subject'     => 'mailto:admin@phmx.local',
+    'public_key'  => '',
+    'private_key' => '',
+];
 ?>

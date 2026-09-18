@@ -16,6 +16,7 @@ if (empty($command)) {
     echo "  make:crud <path>    : Membuat kerangka dasar file (Pages, Actions, API)\n";
     echo "                        Contoh: php phmx make:crud products/product-management\n";
     echo "  migrate             : Mengeksekusi semua file SQL di folder 'database/'\n";
+    echo "  vapid:generate      : Membuat VAPID Key Pair baru dan menyimpannya otomatis ke config.php\n";
     echo "=================================================\n";
     exit(0);
 }
@@ -26,6 +27,9 @@ switch ($command) {
         break;
     case 'migrate':
         handleMigrate();
+        break;
+    case 'vapid:generate':
+        handleVapidGenerate();
         break;
     default:
         // Kompatibilitas mundur jika user mengetik -f
@@ -260,5 +264,52 @@ function handleMigrate() {
     } else {
         echo "[SUKSES] {$migratedCount} file migrasi berhasil dieksekusi!\n";
     }
+}
+
+// ==========================================
+// FUNGSI: VAPID GENERATE
+// ==========================================
+function handleVapidGenerate() {
+    require_once __DIR__ . '/functions/index.php';
+
+    echo "Men-generate pasangan kunci VAPID (P-256 ECDSA)...\n";
+    $keys = generateVapidKeys();
+
+    if (!$keys) {
+        echo "[ERROR] Gagal men-generate kunci VAPID. Pastikan ekstensi OpenSSL PHP aktif.\n";
+        exit(1);
+    }
+
+    $configFile = __DIR__ . '/config.php';
+    if (!file_exists($configFile)) {
+        echo "[ERROR] File config.php tidak ditemukan.\n";
+        exit(1);
+    }
+
+    $configContent = file_get_contents($configFile);
+
+    // Pola regex untuk mendeteksi dan mengganti $vapid_config
+    $pattern = '/\$vapid_config\s*=\s*\[[\s\S]*?\];/';
+    $replacement = "\$vapid_config = [\n" .
+                   "    'subject'     => 'mailto:admin@phmx.local',\n" .
+                   "    'public_key'  => '{$keys['public_key']}',\n" .
+                   "    'private_key' => '{$keys['private_key']}',\n" .
+                   "];";
+
+    if (preg_match($pattern, $configContent)) {
+        $newContent = preg_replace($pattern, $replacement, $configContent, 1);
+    } else {
+        // Jika belum ada, sisipkan sebelum tag penutup php
+        $newContent = str_replace('?>', $replacement . "\n?>", $configContent);
+    }
+
+    file_put_contents($configFile, $newContent);
+
+    echo "=================================================\n";
+    echo "[SUKSES] VAPID Key Pair Berhasil Dibuat!\n";
+    echo "=================================================\n";
+    echo "Public Key  : {$keys['public_key']}\n";
+    echo "Private Key : {$keys['private_key']}\n\n";
+    echo "-> Kunci telah otomatis disimpan ke file config.php!\n";
 }
 ?>

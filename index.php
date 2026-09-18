@@ -15,6 +15,14 @@ phmx_setup('welcome');
     <!-- Favicon / Logo Browser Tab -->
     <link rel="icon" type="image/svg+xml" href="assets/images/logo/phmx-mark.svg">
     <link rel="alternate icon" type="image/png" href="assets/images/logo/phmx-logo.png">
+
+    <?php if (!empty($pwa_enabled)): ?>
+    <!-- PWA Meta & Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#18181b">
+    <link rel="apple-touch-icon" href="assets/images/logo/phmx-logo.png">
+    <?php endif; ?>
+
     <!-- Base URL sangat penting untuk SPA dengan HTML5 History API -->
     <base href="<?= $base_url ?>">
     
@@ -33,6 +41,13 @@ phmx_setup('welcome');
         const PHMX_IS_LOGGED_IN = <?= isset($_SESSION['user_id']) ? 'true' : 'false' ?>;
     </script>
     <script src="assets/js/auth.js"></script>
+
+    <!-- PWA & Web Push Notification Client -->
+    <script>
+        window.PHMX_PWA_ENABLED = <?= !empty($pwa_enabled) ? 'true' : 'false' ?>;
+        window.PHMX_VAPID_PUBLIC_KEY = "<?= $vapid_config['public_key'] ?? '' ?>";
+    </script>
+    <script src="assets/js/pwa.js"></script>
 
     <!-- Bootstrap JS Bundle (includes Popper) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>

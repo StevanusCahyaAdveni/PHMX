@@ -4,25 +4,29 @@
   <img src="assets/images/logo/phmx-logo.png" alt="PHMX Framework Logo" width="280">
 </p>
 
-**PHMX** adalah kerangka kerja (*framework*) PHP modern dan ultra-ringan yang dirancang untuk membangun **Single Page Application (SPA)** secepat kilat tanpa framework JavaScript berat, sekaligus berfungsi sebagai **REST API Gateway Murni** siap pakai untuk klien Mobile (Android/iOS) dan aplikasi pihak ketiga.
+**PHMX** adalah kerangka kerja (*framework*) PHP modern dan ultra-ringan yang dirancang untuk membangun **Single Page Application (SPA)** secepat kilat tanpa framework JavaScript berat, sekaligus berfungsi sebagai **REST API Gateway Murni** siap pakai untuk klien Mobile (Android/iOS) dan dilengkapi kapabilitas **PWA & VAPID Web Push Notifications**.
 
 ---
 
 ## Keunggulan Utama
 
 1. **SPA Tanpa Reload (Single Page Application)**: Navigasi antar halaman menggunakan *Slash URL / Auto-Root* via HTML5 History API dan `hx-boost="true"` dari HTMX.
-2. **REST API Gateway Murni (`/api/`)**: Arsitektur API mandiri dengan standarisasi respons JSON `response($success, $message, $data)`, penanganan CORS, dan pemisahan logika di `api/methods/`.
-3. **Autentikasi Ganda (Session & Bearer Token)**:
+2. **PWA & Web Push Notification Bawaan**:
+   - Dilengkapi *Service Worker* dan *Manifest* siap pakai (dapat diaktifkan/dinonaktifkan via `$pwa_enabled` di `config.php`).
+   - Mendukung pengiriman **Web Push Notifications VAPID murni (RFC 8292 / RFC 8291)** langsung dari PHP tanpa ketergantungan pihak ketiga.
+   - Perintah CLI `php phmx vapid:generate` untuk pembuatan dan injeksi kunci otomatis ke `config.php`.
+3. **REST API Gateway Murni (`/api/`)**: Arsitektur API mandiri dengan standarisasi respons JSON `response($success, $message, $data)`, penanganan CORS, dan pemisahan logika di `api/methods/`.
+4. **Autentikasi Ganda (Session & Bearer Token)**:
    - **Web Client**: Autentikasi berbasis session dengan fitur *Remember Me (Silent Login)* via `localStorage` yang otomatis memperbarui sesi tanpa mengganggu navigasi pengguna.
    - **Mobile Client (Android/iOS)**: Autentikasi modern berbasis **Bearer Token** (`Authorization: Bearer <token>`) yang aman dan *stateless*.
-4. **Rate Limiting / Throttle Middleware**: Proteksi dari serangan *brute force* dan spam request menggunakan middleware terpusat (`throttle:max_attempts,decay_minutes`).
-5. **Auto-Routing & Middleware Terpusat**: Pengaturan rute halaman, aksi web, dan REST API dikelola di satu tempat (`middleware/routes.php`) menggunakan pola wildcard `fnmatch()`.
-6. **Keamanan Bawaan**:
+5. **Rate Limiting / Throttle Middleware**: Proteksi dari serangan *brute force* dan spam request menggunakan middleware terpusat (`throttle:max_attempts,decay_minutes`).
+6. **Auto-Routing & Middleware Terpusat**: Pengaturan rute halaman, aksi web, dan REST API dikelola di satu tempat (`middleware/routes.php`) menggunakan pola wildcard `fnmatch()`.
+7. **Keamanan Bawaan**:
    - Proteksi otomatis dari SQL Injection (`querySecure()` & `executeSecure()`).
    - Proteksi XSS otomatis (`sani()`).
    - Proteksi CSRF otomatis (*Zero-Boilerplate Auto-Injection*).
-7. **CRUD & API Generator (Web & CLI)**: Pembuatan modul CRUD web, API JSON, dan file migrasi database secara otomatis dalam hitungan detik.
-8. **Magic Pagination & Multi-Column Search**: Paginasi dan form pencarian multi-kolom hanya dengan 1 baris kode.
+8. **CRUD & API Generator (Web & CLI)**: Pembuatan modul CRUD web, API JSON, dan file migrasi database secara otomatis dalam hitungan detik.
+9. **Magic Pagination & Multi-Column Search**: Paginasi dan form pencarian multi-kolom hanya dengan 1 baris kode.
 
 ---
 
@@ -34,13 +38,19 @@
    $host = 'localhost';
    $user = 'root';
    $pass = ''; 
-   $db   = 'phmx_db'; // Sesuaikan nama database Anda
+   $db   = 'phmx-framework'; // Sesuaikan nama database Anda
    ```
 3. Buka Terminal / CMD di root folder proyek, lalu jalankan migrasi database awal:
    ```bash
    php phmx migrate
    ```
-   *(Perintah ini akan membuat tabel `migrations` dan mengeksekusi semua file `.sql` di folder `database/` secara berurutan).*
+   *(Perintah ini akan membuat tabel `migrations`, `users`, dan `push_subscriptions` di database secara otomatis).*
+
+4. Generate pasangan kunci VAPID untuk Web Push Notifications:
+   ```bash
+   php phmx vapid:generate
+   ```
+   *(Kunci Public dan Private akan otomatis terbuat dan tersimpan di `config.php`).*
 
 ---
 
@@ -96,7 +106,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 ---
 
-## 2. REST API Gateway & Mobile Client (Bearer Token)
+## 2. PWA & VAPID Web Push Notifications
+
+### Saklar On/Off PWA di `config.php`
+```php
+$pwa_enabled = true; // Set false untuk mematikan PWA & auto-unregister Service Worker
+```
+
+### Cara Kerja Web Push
+1. **Pendaftaran Perangkat**: Client browser meminta izin push melalui `assets/js/pwa.js` dan mendaftarkan endpoint ke `/api/push/subscribe`.
+2. **Pengiriman dari PHP Backend**:
+```php
+$devices = querySecure($con, "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?", [$target_user_id], 's');
+
+$payload = [
+    'title' => 'Pesan Baru',
+    'body'  => 'Anda menerima pesan baru.',
+    'icon'  => 'assets/images/logo/phmx-mark.svg',
+    'data'  => ['url' => 'chat/room']
+];
+
+while ($device = mysqli_fetch_assoc($devices)) {
+    sendWebPush($device, $payload);
+}
+```
+
+---
+
+## 3. REST API Gateway & Mobile Client (Bearer Token)
 
 Semua permintaan API diakses melalui rute `/api/{endpoint}`.
 
@@ -143,22 +180,9 @@ POST /api/auth/mobile_logout
 Authorization: Bearer 9c27ece2bc88aebb857a853dd80748899b1be387c2e13f36ca3df96e619fc8f7
 ```
 
-### Menulis File API Baru di `api/methods/`
-Gunakan fungsi bawaan `response($success, $message, $data)`:
-```php
-// api/methods/products/list.php
-$res = querySecure($con, "SELECT * FROM products ORDER BY created_at DESC");
-$products = [];
-while ($row = mysqli_fetch_assoc($res)) {
-    $products[] = $row;
-}
-
-response(true, 'Data produk berhasil diambil', $products);
-```
-
 ---
 
-## 3. Konfigurasi Rute & Middleware Terpusat (`middleware/routes.php`)
+## 4. Konfigurasi Rute & Middleware Terpusat (`middleware/routes.php`)
 
 Daftarkan proteksi rute Web maupun API di dalam file `middleware/routes.php`:
 
@@ -169,18 +193,20 @@ return [
     'users/user-management'   => ['auth'],
     'auth/login'              => ['throttle:5,1'], // Maks 5 percobaan per 1 menit
 
-    // Rute API (Rate limited & Bearer Token)
+    // Rute API (Rate limited, Token & Push)
     'api/auth/mobile_login'   => ['throttle:10,1'],
     'api/auth/silent_login'   => ['throttle:10,1'],
     'api/auth/mobile_logout'  => ['api_auth'],
-    'api/users/*'             => ['api_auth'],     // Wildcard: semua endpoint api/users/ dilindungi token
+    'api/users/*'             => ['api_auth'],
+    'api/push/subscribe'      => ['throttle:30,1'],
+    'api/push/send_test'      => ['throttle:10,1'],
 ];
 ?>
 ```
 
 ---
 
-## 4. Remember Me (Silent Login) via localStorage
+## 5. Remember Me (Silent Login) via localStorage
 
 Fitur Remember Me tersimpan di `localStorage` peramban client:
 1. Saat user mencentang *Remember Me* dan berhasil login, event `login-success` dipicu dan kredensial tersimpan di `localStorage`.
@@ -190,13 +216,15 @@ Fitur Remember Me tersimpan di `localStorage` peramban client:
 
 ---
 
-## 5. Daftar Fungsi Helper Bawaan
+## 6. Daftar Fungsi Helper Bawaan
 
 | Fungsi | Kegunaan | Contoh Pemakaian |
 |---|---|---|
 | `sani($data)` | Sanitasi string/array dari XSS | `$nama = sani($_POST['nama']);` |
 | `querySecure($con, $sql, $params, $types)` | Eksekusi SELECT prepared statement | `$users = querySecure($con, "SELECT * FROM users WHERE role=?", ['admin'], 's');` |
 | `executeSecure($con, $sql, $params, $types)` | Eksekusi INSERT/UPDATE/DELETE | `executeSecure($con, "DELETE FROM users WHERE id=?", [$id], 's');` |
+| `sendWebPush($sub, $payload, $config)` | Kirim notifikasi Web Push VAPID | `sendWebPush($device, ['title' => 'Halo!']);` |
+| `generateVapidKeys()` | Generate pasangan kunci VAPID P-256 | `$keys = generateVapidKeys();` |
 | `response($success, $msg, $data)` | Standarisasi output JSON REST API | `response(true, 'Berhasil', $data);` |
 | `generate_uuid()` | Generate UUID v4 36-karakter | `$id = generate_uuid();` |
 | `htmxReloadWithMessage($msg, $type)` | Refresh halaman aktif dengan notifikasi | `htmxReloadWithMessage('Data berhasil disimpan!', 'success');` |
@@ -207,7 +235,7 @@ Fitur Remember Me tersimpan di `localStorage` peramban client:
 
 ---
 
-## 6. CRUD & REST API Generator
+## 7. CRUD & REST API Generator
 
 ### Web Generator (`/generate-crud`)
 1. Buka halaman `/generate-crud` di browser Anda.
@@ -220,6 +248,9 @@ Fitur Remember Me tersimpan di `localStorage` peramban client:
 # Menampilkan bantuan CLI
 php phmx
 
+# Membuat pasangan kunci VAPID Web Push
+php phmx vapid:generate
+
 # Membuat kerangka kosong
 php phmx make:crud products/manage
 
@@ -229,7 +260,7 @@ php phmx migrate
 
 ---
 
-## 7. Logo & Desain Identitas
+## 8. Logo & Desain Identitas
 
 Logo resmi PHMX Framework tersimpan di direktori [`assets/images/logo/`](file:///d:/xampp/htdocs/PersonalProject/PHMX/assets/images/logo):
 - `phmx-logo.png` & `phmx-logo.jpg`: Logo resolusi tinggi dengan emblem origami geometris.
