@@ -1,75 +1,106 @@
 ---
 name: phmx_framework
-description: "Aturan utama, konsep routing, REST API Gateway, autentikasi token/session, rate limiting, PWA, Web Push VAPID, dan daftar fungsi bawaan saat membangun aplikasi web/API menggunakan framework kustom PHMX."
+description: "Aturan arsitektur 3-lapisan, CLI phmx (pembuatan modul CRUD & migrasi database), async deferred UI 0ms, TCL transaksi database, REST API, autentikasi ganda, dan fungsi inti PHMX."
 ---
 
-# PHMX Framework Guidelines & Architecture
+# PHMX Framework — AI Agent Cheatsheet & Guardrails
 
-## 1. Arsitektur & Aturan Ketat
-1. **Pemisahan Tiga Lapisan (Pages, Actions, APIs)**:
-   - **`pages/`**: HANYA untuk tampilan antarmuka (HTML/UI) dan pembacaan data (`SELECT`). Dilarang keras menaruh query manipulasi data (`INSERT`, `UPDATE`, `DELETE`) di folder ini.
-   - **`actions/`**: HANYA untuk memproses data dari form web / HTMX (`POST`, `PUT`, `DELETE`). Gunakan helper pesan HTMX seperti `htmxMessage()`, `htmxReloadWithMessage()`, atau `htmxRedirectWithMessage()`.
-   - **`api/methods/`**: HANYA untuk *endpoint* REST API murni (Mobile/JSON). Setiap file di folder ini cukup menggunakan fungsi `response($success, $message, $data)`.
-2. **SPA Navigasi & HTMX**:
-   - `index.php` menggunakan `hx-boost="true"` pada tag `<body>` untuk mode SPA tanpa reload (Slash URL / HTML5 History API).
-   - Gunakan path URL relatif (contoh: `<a href="users/user-management">`).
-   - Form Web harus diarahkan ke action dengan pola `hx-post="?act=..."`, serta `hx-target` dan `hx-swap="innerHTML"`.
-3. **REST API Gateway (`api/index.php`)**:
-   - Semua panggilan API diarahkan melalui `.htaccess` ke `api/index.php?endpoint=...`.
-   - Mendukung CORS preflight (`OPTIONS`), penerusan header `Authorization`, dan validasi CSRF untuk request web/session.
-   - Mengembalikan output berformat standar JSON: `{ "success": bool, "message": string, "data": any }`.
-4. **PWA & Web Push Notification (VAPID)**:
-   - Saklar di `config.php`: `$pwa_enabled = true / false`.
-   - Pasangan kunci VAPID P-256 dibuat otomatis melalui CLI: `php phmx vapid:generate`.
-   - Pengiriman notifikasi push langsung dari PHP menggunakan `sendWebPush($subscription, $payload)`.
-
----
-
-## 2. Sistem Middleware & Rute Terpusat (`middleware/routes.php`)
-Konfigurasi middleware dikelola di satu tempat (`middleware/routes.php`) dengan pencocokan pola `fnmatch()`:
-- **Rute Web (Pages/Actions)**:
-  - `'users/user-management' => ['auth']` (Memerlukan session web aktif).
-  - `'auth/login' => ['throttle:5,1']` (Rate limit 5 percobaan per 1 menit).
-- **Rute API**:
-  - `'api/auth/mobile_login' => ['throttle:10,1']` (Rate limit endpoint login mobile).
-  - `'api/auth/mobile_logout' => ['api_auth']` (Wajib menyertakan Bearer Token).
-  - `'api/users/*' => ['api_auth']` (Melindungi semua endpoint API pengguna dengan Bearer Token).
-  - `'api/push/subscribe' => ['throttle:30,1']` (Pendaftaran endpoint push perangkat).
-  - `'api/push/send_test' => ['throttle:10,1']` (Pengujian pengiriman notifikasi).
+> [!IMPORTANT]
+> **ATURAN MUTLAK: PEMBUATAN FILE BARU & MIGRASI DATABASE**
+>
+> 1. **PEMBUATAN FILE BARU (CRUD / MODUL)**:
+>    - **DILARANG KERAS membuat file secara acak atau mencampur antarmuka UI dengan logika manipulasi data.**
+>    - **SELALU gunakan CLI: `php phmx make:crud <folder>/<nama_modul>`** atau buka web generator di **/generate-crud**.
+>    - **SETIAP modul CRUD WAJIB mematuhi arsitektur 3-lapisan terisolasi**:
+>      - **`pages/<folder>/<modul>.php`**: HANYA untuk tampilan UI (HTML) & pembacaan data (`SELECT`). Gunakan `async_start()` & `async_end()` untuk rendering tabel/data berat.
+>      - **`actions/<folder>/<modul>.php`**: HANYA untuk memproses form Web / HTMX (`POST`, `PUT`, `DELETE`). Gunakan `htmxMessage()`, `htmxReloadWithMessage()`, atau `htmxRedirectWithMessage()`.
+>      - **`api/methods/<folder>/<modul>.php`**: HANYA untuk endpoint REST API JSON murni (`response($success, $message, $data)`).
+>
+> 2. **MIGRASI DATABASE**:
+>    - **DILARANG KERAS mengeksekusi DDL langsung (CREATE/ALTER TABLE) tanpa mencatatnya ke dalam file migrasi!**
+>    - **SETIAP perubahan struktur database WAJIB dibuatkan file migrasi baru di folder `database/`** dengan format nama: **`database/YYYYMMDD-nama_migrasi.sql`** (contoh: `database/20261011-tabel_produk.sql`).
+>    - **SETELAH membuat file SQL, WAJIB eksekusi CLI: `php phmx migrate`** untuk menerapkan struktur ke database secara aman dan tercatat di tabel `migrations`.
 
 ---
 
-## 3. Sistem Autentikasi (Web vs Mobile)
-1. **Web Session & Remember Me (Silent Login)**:
-   - Login web menggunakan session PHP (`$_SESSION['user_id']`).
-   - Fitur *Remember Me* memanfaatkan `localStorage` di client (`assets/js/auth.js`) dan endpoint `api/methods/auth/silent_login.php`. Sesi diperbarui secara senyap jika session server habis tanpa menendang user dari halaman aktif.
-2. **Mobile & External API (Bearer Token)**:
-   - Header: `Authorization: Bearer <token>`.
-   - Endpoint login mobile: `api/methods/auth/mobile_login.php` menghasilkan token acak aman 64-karakter (`bin2hex(random_bytes(32))`) yang disimpan di tabel `users.api_token`.
-   - Middleware `middleware/api_auth.php` memverifikasi token dan menyediakan data user login di `$GLOBALS['auth_user']`.
+## 1. Navigasi SPA & Async Deferred UI (0ms Transition)
+
+- **Navigasi SPA**: Tag `<body>` di `index.php` menggunakan `hx-boost="true"` (Slash URL / HTML5 History API).
+- **Pola Lazy-Load Skeleton**: Untuk tabel atau halaman dengan query data berat, **WAJIB** gunakan kontainer lazy-load:
+  ```php
+  <?= async_start('Memuat data pengguna...', 'table-container', 'load_users') ?>
+  <?php if (is_async('load_users')): ?>
+      <!-- Query berat SELECT, paginationQuery(), dan render tabel di sini -->
+  <?php endif; ?>
+  <?= async_end('load_users') ?>
+  ```
+  *(Sistem otomatis memanggil `session_write_close()` untuk menghindari session lock, membatalkan request lama via auto-abort saat pindah halaman, dan menampilkan shell halaman seketika 0ms).*
 
 ---
 
-## 4. Daftar Fungsi Bawaan (Core Helpers)
-Termuat otomatis melalui `functions/index.php`:
-- `sani($data)`: Sanitasi wajib untuk input `$_POST` / `$_GET` dari XSS.
-- `querySecure($con, $sql, $params, $types)`: Eksekusi prepared statement untuk query `SELECT`.
-- `executeSecure($con, $sql, $params, $types)`: Eksekusi prepared statement untuk `INSERT`, `UPDATE`, `DELETE`.
-- `sendWebPush($subscription, $payload, $config)`: Kirim Web Push Notification VAPID murni.
-- `generateVapidKeys()`: Helper pembuatan pasangan kunci VAPID P-256.
-- `response($success, $message, $data)`: Format respons standar REST API (hanya di konteks API).
-- `generate_uuid()`: Menghasilkan UUID v4 36-karakter untuk Primary Key.
-- `htmxRedirectWithMessage($url, $message, $type)`: Redirect SPA HTMX dengan notifikasi Toast/Alert.
-- `htmxReloadWithMessage($message, $type)`: Refresh data di halaman aktif sambil menampilkan pesan sukses.
-- `htmxMessage($message, $type)`: Menampilkan pesan alert tanpa reload.
-- `paginationQuery($con, $sql, $params, $types, $limit, $baseUrl)`: Helper paginasi cerdas 1 baris.
-- `generateSearchForm($inputs, $button)`: Helper instan pembuat form pencarian multi-kolom.
+## 2. Database & Transaksi TCL (ACID Safe)
+
+- **Prepared Statements**:
+  - `querySecure($con, $sql, $params, $types)` -> Untuk query `SELECT`.
+  - `executeSecure($con, $sql, $params, $types)` -> Untuk query `INSERT`, `UPDATE`, `DELETE`.
+- **Transaksi Konsistensi Data (TCL)**:
+  Untuk eksekusi multi-query yang saling bergantung, **WAJIB** bungkus dengan `transactionSecure()`:
+  ```php
+  $success = transactionSecure($con, function($c) {
+      executeSecure($c, "INSERT INTO orders (id, total) VALUES (?, ?)", [$id, $total], 'si');
+      executeSecure($c, "UPDATE inventory SET stock = stock - ? WHERE id = ?", [$qty, $item_id], 'is');
+      return true; // Return false jika ingin auto-rollback
+  });
+  if (!$success) {
+      $error = getTransactionError();
+  }
+  ```
+  *(Disediakan juga kontrol manual: `beginTransaction($con)`, `commitTransaction($con)`, `rollbackTransaction($con)`).*
 
 ---
 
-## 5. CLI & Database Migrations
-- `php phmx`: Menampilkan bantuan dan daftar perintah CLI framework.
-- `php phmx vapid:generate`: Membuat pasangan kunci VAPID baru dan otomatis menyimpannya ke `config.php`.
-- `php phmx make:crud <folder>/<file>`: Menghasilkan kerangka kerja (*scaffolding*) CRUD.
-- `php phmx migrate`: Menjalankan semua file migrasi `.sql` di folder `database/` secara berurutan. Format file: `YYYYMMDD-nama_migrasi.sql` atau `YYYYMMDDHHIISS-nama_tabel.sql`.
-- **CRUD Generator Web (`/generate-crud`)**: Menghasilkan file halaman (`pages/`), logika aksi (`actions/`), API RESTful (`api/methods/`), dan migrasi tabel SQL secara otomatis.
+## 3. REST API Gateway & Autentikasi Ganda
+
+- **Gateway Terpusat (`/api/`)**: Semua request diarahkan ke `api/index.php?endpoint=...`.
+- **Standar Respons JSON**: HANYA gunakan `response($success, $message, $data)`.
+- **Autentikasi Web**: Berbasis Session PHP + *Silent Login (Remember Me)* via `localStorage` di client (`assets/js/auth.js`) yang menembak `/api/auth/silent_login`.
+- **Autentikasi Mobile**: Berbasis Bearer Token (`Authorization: Bearer <token>`). Verifikasi token otomatis dilakukan middleware `api_auth` dan user login tersimpan di `$GLOBALS['auth_user']`.
+- **Rute & Middleware (`middleware/routes.php`)**: Daftarkan rute menggunakan wildcard `fnmatch()`, contoh:
+  - `'users/*' => ['auth']` (Web Session)
+  - `'api/users/*' => ['api_auth']` (Mobile Bearer Token)
+  - `'auth/login' => ['throttle:5,1']` (Rate Limiting: maks 5 percobaan per 1 menit)
+
+---
+
+## 4. Web Push Notification (VAPID) & Antrean Background
+
+- **Kirim Tunggal**: `sendWebPush($subscription, $payload)` (dilengkapi anti-SSRF & validasi HTTPS).
+- **Kirim Batch Paralel**: `sendWebPushBatch($subscriptions, $payload)` (menggunakan `curl_multi_exec` concurrent non-blocking).
+- **Antrean Database (Queue)**: `queueWebPush($con, $subscription, $payload)` untuk memasukkan ke antrean.
+- **Worker Background**: Jalankan `php phmx push:work 50 --loop` (bisa dijalankan via cron job atau daemon supervisor).
+
+---
+
+## 5. Ringkasan Core Helper Functions
+
+| Helper | Kegunaan |
+|---|---|
+| `sani($data)` | Sanitasi input XSS |
+| `asset($path)` | Smart versioning CSS/JS via `filemtime()` |
+| `uploadFile($file, $dir, $size, $types)` | Upload aman + auto-compress + whitelist |
+| `generate_uuid()` | Generate UUID v4 36-karakter |
+| `paginationQuery($con, $sql, $p, $t, $limit, $url)` | Paginasi otomatis |
+| `generateSearchForm($inputs, $btn)` | Form filter & pencarian multi-kolom |
+| `htmxReloadWithMessage($msg, $type)` | Refresh halaman aktif dengan notifikasi |
+| `htmxRedirectWithMessage($url, $msg, $type)` | Pindah halaman SPA dengan notifikasi |
+| `htmxMessage($msg, $type)` | Alert respon AJAX HTMX |
+
+---
+
+## 6. Daftar Perintah CLI (`phmx`)
+
+- **`php phmx make:crud <folder>/<file>`** : **Membuat kerangka modul 3-lapisan (`pages/`, `actions/`, `api/methods/`)**
+- **`php phmx migrate`** : **Menjalankan seluruh file migrasi SQL baru di `database/`**
+- `php phmx push:work [batch] [--loop]` : Menjalankan background worker antrean Web Push
+- `php phmx vapid:generate` : Membuat pasangan kunci VAPID dan menyimpannya ke `config.php`
+- `php phmx seed:users [jumlah]` : Mengisi data dummy pengguna (default: 100)

@@ -11,22 +11,31 @@
 ## Keunggulan Utama
 
 1. **SPA Tanpa Reload (Single Page Application)**: Navigasi antar halaman menggunakan *Slash URL / Auto-Root* via HTML5 History API dan `hx-boost="true"` dari HTMX.
-2. **PWA & Web Push Notification Bawaan**:
+2. **Async Deferred Loading (Transisi 0ms / Non-Blocking)**: Render shell UI instan dengan kontainer lazy-load (`async_start()` & `async_end()`) yang memuat data berat di latar belakang tanpa mengunci sesi PHP (`session_write_close()`) dan mendukung pembatalan request otomatis (*auto-abort*) saat pengguna berpindah halaman.
+3. **Database Transaction Control Language (TCL - ACID)**: Wrapper transaksi terpadu `transactionSecure($con, $callback)` (mendukung closure atau batch array query) dengan auto-commit & auto-rollback serta fungsi manual (`beginTransaction()`, `commitTransaction()`, `rollbackTransaction()`) demi menjamin integritas dan konsistensi data.
+4. **PWA & Web Push Notification Bawaan (Batching & Background Queue)**:
    - Dilengkapi *Service Worker* dan *Manifest* siap pakai (dapat diaktifkan/dinonaktifkan via `$pwa_enabled` di `config.php`).
-   - Mendukung pengiriman **Web Push Notifications VAPID murni (RFC 8292 / RFC 8291)** langsung dari PHP tanpa ketergantungan pihak ketiga.
+   - Mendukung pengiriman **Web Push Notifications VAPID murni (RFC 8292 / RFC 8291)** langsung dari PHP tanpa ketergantungan *vendor* pihak ketiga.
+   - Pengiriman paralel berkecepatan tinggi via `sendWebPushBatch()` (`curl_multi_exec`) dengan caching JWT token.
+   - Sistem antrean database asinkronus (`queueWebPush()`) yang diproses via worker CLI `php phmx push:work`.
    - Perintah CLI `php phmx vapid:generate` untuk pembuatan dan injeksi kunci otomatis ke `config.php`.
-3. **REST API Gateway Murni (`/api/`)**: Arsitektur API mandiri dengan standarisasi respons JSON `response($success, $message, $data)`, penanganan CORS, dan pemisahan logika di `api/methods/`.
-4. **Autentikasi Ganda (Session & Bearer Token)**:
+5. **REST API Gateway Murni (`/api/`)**: Arsitektur API mandiri dengan standarisasi respons JSON `response($success, $message, $data)`, penanganan CORS, dan pemisahan logika di `api/methods/`.
+6. **Autentikasi Ganda (Session & Bearer Token)**:
    - **Web Client**: Autentikasi berbasis session dengan fitur *Remember Me (Silent Login)* via `localStorage` yang otomatis memperbarui sesi tanpa mengganggu navigasi pengguna.
    - **Mobile Client (Android/iOS)**: Autentikasi modern berbasis **Bearer Token** (`Authorization: Bearer <token>`) yang aman dan *stateless*.
-5. **Rate Limiting / Throttle Middleware**: Proteksi dari serangan *brute force* dan spam request menggunakan middleware terpusat (`throttle:max_attempts,decay_minutes`).
-6. **Auto-Routing & Middleware Terpusat**: Pengaturan rute halaman, aksi web, dan REST API dikelola di satu tempat (`middleware/routes.php`) menggunakan pola wildcard `fnmatch()`.
-7. **Keamanan Bawaan**:
-   - Proteksi otomatis dari SQL Injection (`querySecure()` & `executeSecure()`).
-   - Proteksi XSS otomatis (`sani()`).
-   - Proteksi CSRF otomatis (*Zero-Boilerplate Auto-Injection*).
-8. **CRUD & API Generator (Web & CLI)**: Pembuatan modul CRUD web, API JSON, dan file migrasi database secara otomatis dalam hitungan detik.
-9. **Magic Pagination & Multi-Column Search**: Paginasi dan form pencarian multi-kolom hanya dengan 1 baris kode.
+7. **Rate Limiting / Throttle Middleware**: Proteksi dari serangan *brute force* dan spam request menggunakan middleware terpusat (`throttle:max_attempts,decay_minutes`).
+8. **Auto-Routing & Middleware Terpusat**: Pengaturan rute halaman, aksi web, dan REST API dikelola di satu tempat (`middleware/routes.php`) menggunakan pola wildcard `fnmatch()`.
+9. **Smart Asset Versioning (`asset()`)**: Cache busting otomatis berbasis `filemtime()` sehingga browser langsung mengunduh file baru hanya jika isi CSS/JS di server berubah.
+10. **Keamanan Bawaan Berlapis (Enterprise Defaults)**:
+    - Proteksi otomatis SQL Injection (`querySecure()`, `executeSecure()`, & `transactionSecure()`).
+    - Proteksi XSS otomatis (`sani()`) dan escaping ketat `json_encode` di tag `<script>`.
+    - Proteksi CSRF otomatis (*Zero-Boilerplate Auto-Injection*).
+    - Whitelist ketat upload file & pencegahan eksekusi skrip di folder `uploads/`.
+    - Hardening cookie sesi (`HttpOnly`, `SameSite=Lax`, `Secure`).
+    - Anti-SSRF pada Web Push dengan verifikasi endpoint dan HTTPS mandatory.
+    - Otorisasi folder internal Apache 2.4 (`Require all denied`) dan blokir akses langsung Nginx.
+11. **CRUD & API Generator (Web & CLI)**: Pembuatan modul CRUD web asinkronus, API JSON, dan file migrasi database secara otomatis dalam hitungan detik.
+12. **Magic Pagination & Multi-Column Search**: Paginasi dan form pencarian multi-kolom hanya dengan 1 baris kode.
 
 ---
 
@@ -223,15 +232,26 @@ Fitur Remember Me tersimpan di `localStorage` peramban client:
 | `sani($data)` | Sanitasi string/array dari XSS | `$nama = sani($_POST['nama']);` |
 | `querySecure($con, $sql, $params, $types)` | Eksekusi SELECT prepared statement | `$users = querySecure($con, "SELECT * FROM users WHERE role=?", ['admin'], 's');` |
 | `executeSecure($con, $sql, $params, $types)` | Eksekusi INSERT/UPDATE/DELETE | `executeSecure($con, "DELETE FROM users WHERE id=?", [$id], 's');` |
-| `sendWebPush($sub, $payload, $config)` | Kirim notifikasi Web Push VAPID | `sendWebPush($device, ['title' => 'Halo!']);` |
+| `transactionSecure($con, $action)` | Transaksi TCL (ACID) otomatis (closure/batch) | `transactionSecure($con, function($c) { ... });` |
+| `beginTransaction($con)` / `commitTransaction($con)` / `rollbackTransaction($con)` | Kontrol transaksi database manual | `beginTransaction($con); ... commitTransaction($con);` |
+| `getTransactionError()` | Ambil pesan error transaksi terakhir | `$err = getTransactionError();` |
+| `asset($path)` | Smart asset versioning via `filemtime()` | `<link rel="stylesheet" href="<?= asset('assets/css/style.css') ?>">` |
+| `uploadFile($file, $targetDir, $maxSize, $types)` | Upload file aman dengan kompresi & whitelist | `$path = uploadFile($_FILES['avatar'], 'uploads/avatars/');` |
+| `sendWebPush($sub, $payload, $config)` | Kirim notifikasi Web Push VAPID tunggal | `sendWebPush($device, ['title' => 'Halo!']);` |
+| `sendWebPushBatch($subs, $payload, $config)` | Kirim Web Push paralel (`curl_multi_exec`) | `sendWebPushBatch($devices, ['title' => 'Pengumuman!']);` |
+| `queueWebPush($con, $sub, $payload)` | Masukkan notifikasi ke antrean database | `queueWebPush($con, $device, ['title' => 'Halo']);` |
+| `processWebPushQueue($con, $batchSize, $maxAttempts)` | Proses antrean Web Push di latar belakang | `$stats = processWebPushQueue($con, 50);` |
 | `generateVapidKeys()` | Generate pasangan kunci VAPID P-256 | `$keys = generateVapidKeys();` |
 | `response($success, $msg, $data)` | Standarisasi output JSON REST API | `response(true, 'Berhasil', $data);` |
 | `generate_uuid()` | Generate UUID v4 36-karakter | `$id = generate_uuid();` |
-| `htmxReloadWithMessage($msg, $type)` | Refresh halaman aktif dengan notifikasi | `htmxReloadWithMessage('Data berhasil disimpan!', 'success');` |
-| `htmxRedirectWithMessage($url, $msg, $type)` | Redirect halaman SPA dengan pesan | `htmxRedirectWithMessage('dashboard', 'Selamat datang!', 'success');` |
+| `htmxReloadWithMessage($msg, $type, $delay, $target)` | Reload asinkronus (pertahankan scroll posisi) | `htmxReloadWithMessage('Data berhasil disimpan!', 'success');` |
+| `htmxRedirectWithMessage($url, $msg, $type, $delay, $keepFields, $target)` | Redirect halaman SPA dengan pesan | `htmxRedirectWithMessage('dashboard', 'Selamat datang!', 'success');` |
 | `htmxMessage($msg, $type)` | Tampilkan alert tanpa refresh | `htmxMessage('Form belum lengkap', 'danger');` |
 | `paginationQuery($con, $sql, $params, $types, $limit, $baseUrl)` | Paginasi data otomatis | `$paginated = paginationQuery($con, "SELECT * FROM products", [], "", 10, 'products');` |
 | `generateSearchForm($inputs, $button)` | Pembuat form pencarian dinamis | `generateSearchForm([['name' => 'search_nama', 'placeholder' => 'Cari...']]);` |
+| `async_start($text, $id, $key)` | Pembuka kontainer lazy-load (0ms shell) | `<?= async_start('Memuat data tabel...') ?>` |
+| `is_async($key)` | Cek apakah request async deferred data | `if (is_async()) { ... }` |
+| `async_end($key)` | Penutup kontainer lazy-load & auto exit | `<?= async_end() ?>` |
 
 ---
 
@@ -241,7 +261,7 @@ Fitur Remember Me tersimpan di `localStorage` peramban client:
 1. Buka halaman `/generate-crud` di browser Anda.
 2. Masukkan nama folder, nama file, nama tabel, dan konfigurasi kolom.
 3. Centang opsi **"Generate REST API Endpoint (JSON)"** jika ingin membuat endpoint API secara bersamaan.
-4. Klik **Generate Module**. Sistem akan membuatkan file `pages/`, `actions/`, `api/methods/`, dan migrasi SQL `database/` secara otomatis.
+4. Klik **Generate Module**. Sistem akan membuatkan file `pages/` (dengan lazy-load asinkronus), `actions/`, `api/methods/`, dan migrasi SQL `database/` secara otomatis.
 
 ### CLI Runner (PHMX Artisan)
 ```bash
@@ -251,11 +271,17 @@ php phmx
 # Membuat pasangan kunci VAPID Web Push
 php phmx vapid:generate
 
-# Membuat kerangka kosong
+# Membuat kerangka kosong modul CRUD
 php phmx make:crud products/manage
 
 # Menjalankan migrasi SQL database
 php phmx migrate
+
+# Menjalankan worker antrean Web Push (opsional loop daemon)
+php phmx push:work 50 --loop
+
+# Mengisi 100 data dummy pengguna (seeder)
+php phmx seed:users 100
 ```
 
 ---
@@ -267,3 +293,52 @@ Logo resmi PHMX Framework tersimpan di direktori [`assets/images/logo/`](file://
 - `phmx-logo.svg`: Vektor SVG transparan untuk tema terang (*light mode*).
 - `phmx-logo-white.svg`: Vektor SVG transparan untuk tema gelap (*dark mode/navbar*).
 - `phmx-mark.svg`: Emblem ikon vektor untuk favicon dan mobile icon.
+
+---
+
+## 9. Panduan Deployment Server (Apache vs Nginx / aaPanel)
+
+PHMX Framework mendukung berjalan murni di **Apache** maupun murni di **Nginx (aaPanel Ubuntu)** tanpa perlu kombo ganda (Apache + Nginx):
+
+### A. Jika Menggunakan Apache Standalone
+Framework sudah menyertakan file `.htaccess` di root, `api/`, `pages/`, `actions/`, `tmp/`, dan `uploads/`. Anda cukup memastikan modul `mod_rewrite` dan `mod_headers` aktif:
+```bash
+sudo a2enmod rewrite headers
+sudo systemctl restart apache2
+```
+
+### B. Jika Menggunakan Nginx Standalone di aaPanel (Ubuntu)
+1. Buat website baru di aaPanel dengan stack **Nginx** (PHP 8.1 / 8.2).
+2. Masuk ke **aaPanel -> Website -> Klik Nama Domain Anda -> Tab "URL Rewrite"**.
+3. Salin dan tempel aturan berikut, lalu klik **Save**:
+```nginx
+# 1. REST API Gateway Routing
+location /api/ {
+    try_files $uri $uri/ @phmx_api;
+}
+location @phmx_api {
+    rewrite ^/api/(.*)$ /api/index.php?endpoint=$1&$query_string last;
+}
+
+# 2. Web SPA & HTMX Routing
+location / {
+    try_files $uri $uri/ @phmx_web;
+}
+location @phmx_web {
+    rewrite ^/(.*)$ /index.php?hal=$1&$query_string last;
+}
+
+# 3. Proteksi Folder Internal
+location ~* ^/(pages|actions|tmp|database|\.agents|\.git) {
+    deny all;
+    return 403;
+}
+
+# 4. Larang Eksekusi Skrip di uploads/
+location ~* ^/uploads/.*\.(php|phtml|phar|sh|pl|cgi)$ {
+    deny all;
+    return 403;
+}
+```
+Contoh konfigurasi lengkap virtual host standalone tersedia di file [`nginx.conf.example`](file:///d:/xampp/htdocs/PersonalProject/PHMX/nginx.conf.example).
+
