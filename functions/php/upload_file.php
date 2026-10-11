@@ -11,16 +11,22 @@
  * @param array $file File dari $_FILES['field_name']
  * @param string $targetDir Direktori tujuan upload (default: uploads/)
  * @param int $maxSize Ukuran maksimal file dalam bytes (default: 5MB)
- * @param array $allowedTypes Array tipe file yang diizinkan (kosong = semua)
+ * @param array $allowedTypes Array tipe file yang diizinkan (default: ['jpg', 'jpeg', 'png', 'webp', 'pdf'])
  * @return array ['success' => bool, 'message' => string, 'file_path' => string, 'file_name' => string]
  */
-function uploadFile($file, $targetDir = 'uploads/', $maxSize = 5242880, $allowedTypes = [])
+function uploadFile($file, $targetDir = 'uploads/', $maxSize = 5242880, $allowedTypes = ['jpg', 'jpeg', 'png', 'webp', 'pdf'])
 {
+    // Jika allowedTypes kosong, terapkan default whitelist ketat
+    if (empty($allowedTypes)) {
+        $allowedTypes = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+    }
+    $allowedTypes = array_map('strtolower', $allowedTypes);
+
     // Cek apakah ada error saat upload
-    if ($file['error'] !== UPLOAD_ERR_OK) {
+    if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
         return [
             'success' => false,
-            'message' => 'Upload error: ' . $file['error'],
+            'message' => 'Upload error: ' . ($file['error'] ?? 'No file provided'),
             'file_path' => null,
             'file_name' => null
         ];
@@ -44,8 +50,22 @@ function uploadFile($file, $targetDir = 'uploads/', $maxSize = 5242880, $allowed
     $fileExtension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
     $mimeType = mime_content_type($tmpPath);
 
-    // Validasi tipe file jika ada batasan
-    if (!empty($allowedTypes) && !in_array($fileExtension, $allowedTypes)) {
+    // Blacklist mutlak ekstensi berbahaya yang dapat mengeksekusi kode di server
+    $dangerousExtensions = [
+        'php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'phps', 'phar', 'inc',
+        'sh', 'bash', 'exe', 'bat', 'cmd', 'py', 'pl', 'cgi', 'htaccess', 'htpasswd'
+    ];
+    if (in_array($fileExtension, $dangerousExtensions)) {
+        return [
+            'success' => false,
+            'message' => 'Ekstensi file berbahaya ditolak demi keamanan server!',
+            'file_path' => null,
+            'file_name' => null
+        ];
+    }
+
+    // Validasi whitelist tipe file
+    if (!in_array($fileExtension, $allowedTypes)) {
         return [
             'success' => false,
             'message' => 'Tipe file tidak diizinkan! Hanya: ' . implode(', ', $allowedTypes),
@@ -60,6 +80,12 @@ function uploadFile($file, $targetDir = 'uploads/', $maxSize = 5242880, $allowed
     // Buat direktori jika belum ada
     if (!is_dir($targetDir)) {
         mkdir($targetDir, 0755, true);
+    }
+
+    // Pastikan proteksi .htaccess ada di folder upload untuk memblokir eksekusi skrip PHP
+    $htaccessFile = rtrim($targetDir, '/\\') . '/.htaccess';
+    if (!file_exists($htaccessFile)) {
+        @file_put_contents($htaccessFile, "<FilesMatch \"\\.(php|phtml|php3|php4|php5|php7|phps|phar|cgi|pl|exe)$\">\n    Require all denied\n</FilesMatch>\nphp_flag engine off\n");
     }
 
     // Path lengkap file tujuan

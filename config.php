@@ -1,5 +1,17 @@
 <?php
-session_start();
+// 1. Amankan parameter cookie sesi PHP sebelum session_start (Mencegah pencurian cookie via XSS & Mitigasi CSRF)
+if (session_status() === PHP_SESSION_NONE) {
+    $is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'domain'   => '',
+        'secure'   => $is_https,
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
+    session_start();
+}
 
 
 // Deteksi environment (Local vs Production)
@@ -29,6 +41,7 @@ $con = mysqli_connect($host, $user, $pass, $db);
 if (!$con) {
     die("Koneksi database gagal: " . mysqli_connect_error());
 }
+$GLOBALS['con'] = $con;
 
 // Generate Global CSRF Token jika belum ada di sesi
 if (empty($_SESSION['csrf_token'])) {

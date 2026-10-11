@@ -6,8 +6,11 @@
 function phmx_setup($default_page = 'welcome') {
     global $hal, $base_url;
     
-    // Setup routing var
+    // Setup routing var dengan filter ketat (Cegah Path Traversal / LFI)
     $hal = $_GET['hal'] ?? $default_page;
+    $hal = str_replace(['..', '\\', "\0"], '', (string)$hal);
+    $hal = trim($hal, '/');
+    $hal = preg_replace('/[^a-zA-Z0-9_\-\/]/', '', $hal);
     if ($hal === '') $hal = $default_page;
     
     // Tentukan Base URL agar relative link berfungsi dengan baik

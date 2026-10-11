@@ -33,7 +33,11 @@
 function htmxRedirectWithMessage($hash, $message, $type = 'success', $delay = 1500, $keepFields = [])
 {
     $icon = ($type === 'danger') ? 'error' : $type;
+    $msgJson = json_encode($message, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    $iconJson = json_encode($icon);
     $keepJson = json_encode($keepFields);
+    $cleanHash = ltrim($hash, '#');
+    $cleanHashJson = json_encode($cleanHash);
     
     echo "<script>
             (function(){
@@ -59,11 +63,10 @@ function htmxRedirectWithMessage($hash, $message, $type = 'success', $delay = 15
                   }
                 });
                 Toast.fire({
-                  icon: '{$icon}',
-                  title: '{$message}'
+                  icon: {$iconJson},
+                  title: {$msgJson}
                 }).then(() => {
-                    htmx.ajax('GET', '{$hash}', {target: 'body'});
-                    window.history.pushState(null, '', '{$hash}');
+                    window.location.href = {$cleanHashJson};
                 });
             })();
           </script>";
@@ -77,6 +80,8 @@ function htmxRedirectWithMessage($hash, $message, $type = 'success', $delay = 15
 function htmxMessage($message, $type = 'danger', $keepFields = [])
 {
     $icon = ($type === 'danger') ? 'error' : $type;
+    $msgJson = json_encode($message, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    $iconJson = json_encode($icon);
     $keepJson = json_encode($keepFields);
     
     echo "<script>
@@ -99,8 +104,8 @@ function htmxMessage($message, $type = 'danger', $keepFields = [])
                   timerProgressBar: true
                 });
                 Toast.fire({
-                  icon: '{$icon}',
-                  title: '{$message}'
+                  icon: {$iconJson},
+                  title: {$msgJson}
                 });
             })();
           </script>";
@@ -110,14 +115,20 @@ function htmxMessage($message, $type = 'danger', $keepFields = [])
 /**
  * HTMX Khusus: Reload Halaman Saat Ini dengan Pesan
  * Berguna untuk mempertahankan parameter URL (seperti ?page=4 atau ?search=xxx) 
- * setelah melakukan action seperti Update atau Delete.
+ * setelah melakukan action seperti Update atau Delete tanpa me-reset posisi scroll layar.
  */
-function htmxReloadWithMessage($message, $type = 'success', $delay = 1500)
+function htmxReloadWithMessage($message, $type = 'success', $delay = 1500, $target = '#content')
 {
     $icon = ($type === 'danger') ? 'error' : $type;
+    $msgJson = json_encode($message, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    $iconJson = json_encode($icon);
     
     echo "<script>
             (function(){
+                // Catat posisi scroll saat ini agar layar tidak loncat ke atas
+                const currentScrollY = window.scrollY;
+
+                // Tampilkan Toast Notifikasi
                 const Toast = Swal.mixin({
                   toast: true,
                   position: 'bottom-end',
@@ -130,11 +141,62 @@ function htmxReloadWithMessage($message, $type = 'success', $delay = 1500)
                   }
                 });
                 Toast.fire({
-                  icon: '{$icon}',
-                  title: '{$message}'
-                }).then(() => {
-                    // Reload halaman saat ini beserta seluruh query string-nya (?page=..., dll)
-                    htmx.ajax('GET', window.location.href, {target: 'body'});
+                  icon: {$iconJson},
+                  title: {$msgJson}
+                });
+
+                // Deteksi otomatis apakah di halaman ini ada kontainer data async (#async-wrapper)
+                const asyncEl = document.querySelector('#async-wrapper') || document.querySelector('[hx-get*=\"_async=1\"]');
+                let reloadUrl = window.location.href;
+                let reloadTarget = '{$target}';
+                let reloadSwap = 'innerHTML';
+                let reloadSelect = (reloadTarget === '#content') ? '#content' : null;
+
+                if (reloadTarget === '#content' && asyncEl) {
+                    try {
+                        const urlObj = new URL(window.location.href);
+                        urlObj.searchParams.set('_async', '1');
+                        reloadUrl = urlObj.toString();
+                    } catch(e) {
+                        const separator = reloadUrl.includes('?') ? '&' : '?';
+                        reloadUrl = reloadUrl + separator + '_async=1';
+                    }
+                    reloadTarget = '#' + (asyncEl.id || 'async-wrapper');
+                    reloadSwap = 'innerHTML';
+                    reloadSelect = null; // Respons _async murni berisi konten tabel, tidak perlu di-filter dengan select
+                }
+
+                const ajaxOptions = {
+                    target: reloadTarget,
+                    swap: reloadSwap
+                };
+                if (reloadSelect) {
+                    ajaxOptions.select = reloadSelect;
+                }
+
+                // Muat ulang data secara asynchronous tanpa merusak layout atau posisi scroll
+                htmx.ajax('GET', reloadUrl, ajaxOptions).then(() => {
+                    // Pulihkan posisi scroll secara mulus dan presisi
+                    window.scrollTo({ top: currentScrollY, behavior: 'instant' });
+                    
+                    // Pastikan event listener HTMX pada elemen yang baru dimuat tetap aktif (misal tombol Hapus)
+                    const targetEl = document.querySelector(reloadTarget);
+                    if (targetEl && window.htmx) {
+                        htmx.process(targetEl);
+                    }
+
+                    // Reset input form di modal
+                    document.querySelectorAll('.modal form').forEach(f => f.reset());
+
+                    // Bersihkan sisa backdrop modal jika ada
+                    document.querySelectorAll('.modal.show').forEach(m => {
+                        const modalInstance = bootstrap.Modal.getInstance(m);
+                        if (modalInstance) modalInstance.hide();
+                    });
+                    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.removeProperty('overflow');
+                    document.body.style.removeProperty('padding-right');
                 });
             })();
           </script>";

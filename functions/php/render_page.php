@@ -4,6 +4,10 @@
  */
 function render_page($hal) {
     global $con, $base_url, $pwa_enabled, $vapid_config;
+    // Sanitasi ketat parameter halaman untuk mencegah Directory Traversal / LFI
+    $hal = str_replace(['..', '\\', "\0"], '', (string)$hal);
+    $hal = trim($hal, '/');
+    $hal = preg_replace('/[^a-zA-Z0-9_\-\/]/', '', $hal);
     $file = __DIR__ . '/../../pages/' . $hal . '.php';
     
     if (file_exists($file)) {
