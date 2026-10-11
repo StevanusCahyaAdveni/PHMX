@@ -22,99 +22,109 @@
                 'class' => 'btn btn-sm btn-primary'
             ]) ?>
             <br>
-        <div class="table-responsive">
-            <table class="table table-hover table-striped mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th class="px-4 py-3">Nama Lengkap</th>
-                        <th class="py-3">Username</th>
-                        <th class="py-3">Email</th>
-                        <th class="py-3">No. Telp</th>
-                        <th class="py-3">Role</th>
-                        <th class="px-4 py-3 text-end">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php
-                    // Searching Logic
-                    $search_name = sani($_GET['search_name'] ?? '');
-                    $search_email = sani($_GET['search_email'] ?? '');
-                    
-                    $whereConditions = [];
-                    $params = [];
-                    $types = "";
-                    
-                    if (!empty($search_name)) {
-                        $whereConditions[] = "fullname LIKE ?";
-                        $params[] = "%{$search_name}%";
-                        $types .= "s";
-                    }
-                    if (!empty($search_email)) {
-                        $whereConditions[] = "email LIKE ?";
-                        $params[] = "%{$search_email}%";
-                        $types .= "s";
-                    }
-                    
-                    $whereClause = "";
-                    if (!empty($whereConditions)) {
-                        $whereClause = "AND " . implode(" AND ", $whereConditions);
-                    }
-                    // End Searching Logic
-                    
-                    $sql = "SELECT * FROM users WHERE 1 = 1 $whereClause ORDER BY created_at DESC";
-                    
-                    // EKSEKUSI AJAIB (1 Baris)
-                    $paginated = paginationQuery($con, $sql, $params, $types, 5, 'users/user-management');
-                    $users = $paginated['data'];
-                    
-                    if ($users && mysqli_num_rows($users) > 0) {
-                        while ($u = mysqli_fetch_assoc($users)) {
-                            $id = htmlspecialchars($u['id']);
-                            $fn = htmlspecialchars($u['fullname']);
-                            $un = htmlspecialchars($u['username']);
-                            $em = htmlspecialchars($u['email']);
-                            $tl = htmlspecialchars($u['telp_number']);
-                            $rl = htmlspecialchars($u['role']);
-                    ?>
-                    <tr>
-                        <td class="px-4"><?= $fn ?></td>
-                        <td><?= $un ?></td>
-                        <td><?= $em ?></td>
-                        <td><?= $tl ?></td>
-                        <td><span class="badge bg-<?= $rl === 'admin' ? 'primary' : 'secondary' ?>"><?= $rl ?></span></td>
-                        <td class="px-4 text-end">
-                            <button class="btn btn-sm btn-outline-primary" 
-                                    onclick="openEditModal('<?= $id ?>', '<?= addslashes($fn) ?>', '<?= addslashes($un) ?>', '<?= addslashes($em) ?>', '<?= addslashes($tl) ?>', '<?= addslashes($rl) ?>')">
-                                Edit
-                            </button>
-                            <?php if ($u['id'] !== $_SESSION['user_id']): ?>
-                            <button class="btn btn-sm btn-outline-danger ms-1"
-                                    hx-post="?act=users/user-management" 
-                                    hx-vals='{"action_type": "delete", "id": "<?= $id ?>"}'
-                                    hx-target="#users-alert"
-                                    hx-confirm="Yakin ingin menghapus pengguna <?= addslashes($fn) ?>?">
-                                Hapus
-                            </button>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php 
-                        }
-                    } else {
-                        echo '<tr><td colspan="6" class="text-center py-4 text-muted">Data pengguna tidak ditemukan.</td></tr>';
-                    }
-                    ?>
-                </tbody>
-            </table>
-        </div>
 
-        
-        <!-- BAGIAN PAGINATION -->
-        <?php if (!empty($paginated['links'])): ?>
-        <div class="card-footer bg-white py-3 border-0">
-            <?= $paginated['links'] ?>
-        </div>
+        <!-- CONTAINER TABEL ASINKRONUS (SIMPEL & OTOMATIS) -->
+        <?= async_start('Sedang memuat data pengguna...') ?>
+        <?php if (is_async()): ?>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="px-4 py-3">Nama Lengkap</th>
+                            <th class="py-3">Username</th>
+                            <th class="py-3">Email</th>
+                            <th class="py-3">No. Telp</th>
+                            <th class="py-3">Role</th>
+                            <th class="px-4 py-3 text-end">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        // Searching Logic
+                        $search_name = sani($_GET['search_name'] ?? '');
+                        $search_email = sani($_GET['search_email'] ?? '');
+                        
+                        $whereConditions = [];
+                        $params = [];
+                        $types = "";
+                        
+                        if (!empty($search_name)) {
+                            $whereConditions[] = "fullname LIKE ?";
+                            $params[] = "%{$search_name}%";
+                            $types .= "s";
+                        }
+                        if (!empty($search_email)) {
+                            $whereConditions[] = "email LIKE ?";
+                            $params[] = "%{$search_email}%";
+                            $types .= "s";
+                        }
+                        
+                        $whereClause = "";
+                        if (!empty($whereConditions)) {
+                            $whereClause = "AND " . implode(" AND ", $whereConditions);
+                        }
+                        // End Searching Logic
+                        
+                        $sql = "SELECT * FROM users WHERE 1 = 1 $whereClause ORDER BY created_at DESC";
+                        
+                        // EKSEKUSI AJAIB (Default 10 data per halaman dengan pagination)
+                        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+                        
+
+                        $paginated = paginationQuery($con, $sql, $params, $types, $limit, 'users/user-management');
+                        $users = $paginated['data'];
+                        
+                        if ($users && mysqli_num_rows($users) > 0) {
+                            while ($u = mysqli_fetch_assoc($users)) {
+                                $id = htmlspecialchars($u['id']);
+                                $fn = htmlspecialchars($u['fullname']);
+                                $un = htmlspecialchars($u['username']);
+                                $em = htmlspecialchars($u['email']);
+                                $tl = htmlspecialchars($u['telp_number']);
+                                $rl = htmlspecialchars($u['role']);
+                        ?>
+                        <tr>
+                            <td class="px-4"><?= $fn ?></td>
+                            <td><?= $un ?></td>
+                            <td><?= $em ?></td>
+                            <td><?= $tl ?></td>
+                            <td><span class="badge bg-<?= $rl === 'admin' ? 'primary' : 'secondary' ?>"><?= $rl ?></span></td>
+                            <td class="px-4 text-end">
+                                <button class="btn btn-sm btn-outline-primary" 
+                                        onclick="openEditModal('<?= $id ?>', '<?= addslashes($fn) ?>', '<?= addslashes($un) ?>', '<?= addslashes($em) ?>', '<?= addslashes($tl) ?>', '<?= addslashes($rl) ?>')">
+                                    Edit
+                                </button>
+                                <?php if ($u['id'] !== $_SESSION['user_id']): ?>
+                                <button class="btn btn-sm btn-outline-danger ms-1"
+                                        hx-post="?act=users/user-management" 
+                                        hx-vals='{"action_type": "delete", "id": "<?= $id ?>"}'
+                                        hx-target="#users-alert"
+                                        hx-confirm="Yakin ingin menghapus pengguna <?= addslashes($fn) ?>?">
+                                    Hapus
+                                </button>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php 
+                            }
+                        } else {
+                            echo '<tr><td colspan="6" class="text-center py-4 text-muted">Data pengguna tidak ditemukan.</td></tr>';
+                        }
+                        ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- BAGIAN PAGINATION -->
+            <?php if (!empty($paginated['links'])): ?>
+            <div class="card-footer bg-white py-3 border-0">
+                <?= $paginated['links'] ?>
+            </div>
+            <?php endif; ?>
+
         <?php endif; ?>
+        <?= async_end() ?>
     </div>
 </div>
 

@@ -3,7 +3,10 @@
  * Pusat Registrasi Fungsi PHMX (PHP & JS)
  */
 
-// 1. Load Middleware & Core PHP
+// 1. Output Buffering & Load Middleware & Core PHP
+if (!ob_get_level()) {
+    ob_start();
+}
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/php/generate_uuid.php';
 require_once __DIR__ . '/php/sanitasi.php';
@@ -13,6 +16,7 @@ require_once __DIR__ . '/php/upload_file.php';
 require_once __DIR__ . '/php/pagination.php';
 require_once __DIR__ . '/php/search_form.php';
 require_once __DIR__ . '/php/web_push.php';
+require_once __DIR__ . '/php/async.php';
 
 
 // Jika Anda punya fungsi PHP lain di masa depan, include di sini:
