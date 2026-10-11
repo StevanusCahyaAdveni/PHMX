@@ -17,6 +17,10 @@ if (empty($command)) {
     echo "                        Contoh: php phmx make:crud products/product-management\n";
     echo "  migrate             : Mengeksekusi semua file SQL di folder 'database/'\n";
     echo "  vapid:generate      : Membuat VAPID Key Pair baru dan menyimpannya otomatis ke config.php\n";
+    echo "  seed:users [jumlah] : Generate data dummy pengguna (default: 100 user)\n";
+    echo "                        Contoh: php phmx seed:users 100\n";
+    echo "  push:work [batch]   : Memproses antrean notifikasi Web Push di database secara paralel\n";
+    echo "                        Contoh: php phmx push:work 50 (atau tambahkan --loop)\n";
     echo "=================================================\n";
     exit(0);
 }
@@ -30,6 +34,12 @@ switch ($command) {
         break;
     case 'vapid:generate':
         handleVapidGenerate();
+        break;
+    case 'seed:users':
+        handleSeedUsers($argv);
+        break;
+    case 'push:work':
+        handlePushWork($argv);
         break;
     default:
         // Kompatibilitas mundur jika user mengetik -f
@@ -311,5 +321,106 @@ function handleVapidGenerate() {
     echo "Public Key  : {$keys['public_key']}\n";
     echo "Private Key : {$keys['private_key']}\n\n";
     echo "-> Kunci telah otomatis disimpan ke file config.php!\n";
+}
+
+// ==========================================
+// FUNGSI: SEED USERS
+// ==========================================
+function handleSeedUsers($argv) {
+    global $con;
+    require __DIR__ . '/config.php';
+    require_once __DIR__ . '/functions/index.php';
+    $GLOBALS['con'] = $con;
+
+    $count = isset($argv[2]) ? (int)$argv[2] : 100;
+    if ($count <= 0) $count = 100;
+
+    echo "Men-generate {$count} data dummy pengguna ke database...\n";
+
+    $firstNames = [
+        'Budi', 'Siti', 'Agus', 'Dewi', 'Eko', 'Rina', 'Dian', 'Bayu', 'Sari', 'Tri',
+        'Hendra', 'Maya', 'Rizky', 'Putri', 'Wahyu', 'Anisa', 'Aditya', 'Mega', 'Fajar', 'Intan',
+        'Dimas', 'Ratna', 'Arif', 'Nur', 'Dedi', 'Wulan', 'Ilham', 'Gita', 'Farhan', 'Indah',
+        'Reza', 'Tiara', 'Yoga', 'Nadya', 'Gilang', 'Aulia', 'Rio', 'Salsabila', 'Kevin', 'Amanda',
+        'Doni', 'Bella', 'Fikri', 'Lestari', 'Surya', 'Melati', 'Bambang', 'Desi', 'Teguh', 'Citra'
+    ];
+    $lastNames = [
+        'Pratama', 'Lestari', 'Santoso', 'Wijaya', 'Hidayat', 'Saputra', 'Kusuma', 'Utami', 'Setiawan', 'Rahayu',
+        'Nugroho', 'Anggraini', 'Firmansyah', 'Puspita', 'Kurniawan', 'Maharani', 'Wibowo', 'Permata', 'Ramadhan', 'Safitri',
+        'Susanto', 'Handayani', 'Prasetyo', 'Cahyani', 'Gunawan', 'Kartika', 'Siregar', 'Maulana', 'Nasution', 'Hambali'
+    ];
+
+    $defaultPassword = password_hash('password123', PASSWORD_DEFAULT);
+    $inserted = 0;
+
+    for ($i = 1; $i <= $count; $i++) {
+        $id = generate_uuid();
+        $fn = $firstNames[array_rand($firstNames)];
+        $ln = $lastNames[array_rand($lastNames)];
+        $fullname = "{$fn} {$ln}";
+        $uniq = substr(bin2hex(random_bytes(3)), 0, 5);
+        $username = strtolower($fn) . '.' . strtolower($ln) . $uniq;
+        $email = strtolower($fn) . "{$uniq}@example.com";
+        $telp = '08' . mt_rand(1111111111, 9999999999);
+        $role = (mt_rand(1, 10) === 1) ? 'admin' : 'user';
+
+        $sql = "INSERT INTO users (id, fullname, username, email, telp_number, password, role) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        $res = executeSecure($con, $sql, [$id, $fullname, $username, $email, $telp, $defaultPassword, $role], 'sssssss');
+        if ($res) {
+            $inserted++;
+        }
+    }
+
+    echo "=================================================\n";
+    echo "[SUKSES] Berhasil memasukkan {$inserted} data pengguna baru!\n";
+    echo "Default Password untuk semua akun dummy: password123\n";
+    echo "=================================================\n";
+}
+
+// ==========================================
+// FUNGSI: PUSH WORKER (QUEUE PROCESSOR)
+// ==========================================
+function handlePushWork($argv) {
+    require_once __DIR__ . '/functions/index.php';
+    global $con;
+    if (!$con) {
+        $con = $GLOBALS['con'] ?? null;
+    }
+
+    $batchSize = 50;
+    $isLoop = false;
+
+    foreach ($argv as $arg) {
+        if (is_numeric($arg)) {
+            $batchSize = (int)$arg;
+        } elseif ($arg === '--loop') {
+            $isLoop = true;
+        }
+    }
+
+    echo "=================================================\n";
+    echo "         PHMX WEB PUSH QUEUE WORKER              \n";
+    echo "=================================================\n";
+    echo "Ukuran Batch: {$batchSize} per siklus\n";
+    echo "Mode: " . ($isLoop ? "Daemon Loop (Ctrl+C untuk berhenti)" : "Single Run") . "\n";
+    echo "=================================================\n";
+
+    do {
+        $startTime = microtime(true);
+        $result = processWebPushQueue($con, $batchSize);
+        $elapsed = round((microtime(true) - $startTime) * 1000, 2);
+
+        if ($result['processed'] > 0) {
+            $timeStr = date('Y-m-d H:i:s');
+            echo "[{$timeStr}] Diproses: {$result['processed']} | Sukses: {$result['success_count']} | Gagal: {$result['fail_count']} ({$elapsed}ms)\n";
+        } elseif (!$isLoop) {
+            echo "[INFO] Antrean kosong. Tidak ada notifikasi yang perlu dikirim.\n";
+            break;
+        }
+
+        if ($isLoop) {
+            sleep(3); // Polling interval 3 detik
+        }
+    } while ($isLoop);
 }
 ?>

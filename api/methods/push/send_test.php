@@ -37,29 +37,43 @@ $payload = [
     ]
 ];
 
-$successCount = 0;
-$failCount = 0;
-$logs = [];
-
+$subscriptions = [];
 if ($res) {
     while ($sub = mysqli_fetch_assoc($res)) {
-        $result = sendWebPush($sub, $payload);
-        if ($result['success']) {
-            $successCount++;
-        } else {
-            $failCount++;
-            $logs[] = $result['error'];
-        }
+        $subscriptions[] = $sub;
     }
 }
 
-if ($successCount === 0 && $failCount === 0) {
+if (empty($subscriptions)) {
     response(false, 'Belum ada perangkat yang mengaktifkan notifikasi. Klik tombol "Aktifkan Notifikasi" terlebih dahulu.');
 }
 
-response(true, "Notifikasi berhasil dikirim ke {$successCount} perangkat!", [
-    'success_count' => $successCount,
-    'fail_count'    => $failCount,
-    'errors'        => $logs
+// Opsi antrean (Queue Mode) jika diminta via parameter ?queue=1 atau JSON payload {"queue": true}
+$useQueue = isset($_GET['queue']) || !empty($input['queue']);
+
+if ($useQueue) {
+    $queuedCount = queueWebPushBatch($con, $subscriptions, $payload);
+    response(true, "Notifikasi berhasil dimasukkan ke antrean ({$queuedCount} perangkat) untuk diproses di latar belakang!", [
+        'queued_count' => $queuedCount,
+        'mode'         => 'queue'
+    ]);
+}
+
+// Mode Pengiriman Paralel Cepat (curl_multi_exec)
+$batchResult = sendWebPushBatch($subscriptions, $payload);
+
+$logs = [];
+foreach ($batchResult['results'] as $r) {
+    if (!$r['success']) {
+        $logs[] = $r['error'];
+    }
+}
+
+response(true, "Notifikasi berhasil dikirim secara paralel ke {$batchResult['success_count']} perangkat!", [
+    'total'         => $batchResult['total'],
+    'success_count' => $batchResult['success_count'],
+    'fail_count'    => $batchResult['fail_count'],
+    'errors'        => $logs,
+    'mode'          => 'parallel_curl_multi'
 ]);
 ?>
