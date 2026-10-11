@@ -18,9 +18,9 @@ function generatePagination($totalData, $limit, $currentPage, $baseUrlHash)
     $currentPage = max(1, (int)$currentPage);
     $currentPage = min($currentPage, $totalPages);
 
-    // Ambil parameter GET saat ini, buang 'hal' (internal HTMX path), dan 'page'
+    // Ambil parameter GET saat ini, buang 'hal' (internal HTMX path), 'page', 'act', 'load_data', dan '_async'
     $queryParams = $_GET;
-    unset($queryParams['hal'], $queryParams['page'], $queryParams['act']);
+    unset($queryParams['hal'], $queryParams['page'], $queryParams['act'], $queryParams['load_data'], $queryParams['_async']);
 
     // Fungsi kecil pembangun URL Hash
     $buildUrl = function($page) use ($baseUrlHash, $queryParams) {
