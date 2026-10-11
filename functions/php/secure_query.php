@@ -66,8 +66,130 @@ function executeSecure($con, $query, $params = [], $types = '')
 }
 
 /**
+ * =========================================================================
+ * TRANSACTION CONTROL LANGUAGE (TCL) - KONSISTENSI & KEAMANAN DATA (ACID)
+ * =========================================================================
+ */
+
+/**
+ * Mulai transaksi database secara manual
+ * 
+ * @param mysqli $con Koneksi database
+ * @return bool
+ */
+function beginTransaction($con)
+{
+    return mysqli_begin_transaction($con);
+}
+
+/**
+ * Komit perubahan transaksi database secara manual
+ * 
+ * @param mysqli $con Koneksi database
+ * @return bool
+ */
+function commitTransaction($con)
+{
+    return mysqli_commit($con);
+}
+
+/**
+ * Batalkan / rollback transaksi database secara manual
+ * 
+ * @param mysqli $con Koneksi database
+ * @return bool
+ */
+function rollbackTransaction($con)
+{
+    return mysqli_rollback($con);
+}
+
+/**
+ * Mendapatkan pesan kesalahan dari transaksi terakhir yang gagal
+ * 
+ * @return string|null
+ */
+function getTransactionError()
+{
+    return $GLOBALS['last_transaction_error'] ?? null;
+}
+
+/**
+ * Eksekusi transaksi database secara aman dan otomatis (Auto-Commit & Auto-Rollback).
+ * Menjamin integritas data (ACID): jika salah satu query gagal, semua perubahan dibatalkan.
+ * 
+ * Mendukung 2 cara pemanggilan:
+ * 1. Closure / Callback:
+ *    transactionSecure($con, function($con) {
+ *        executeSecure($con, "UPDATE ...", ...);
+ *        executeSecure($con, "INSERT ...", ...);
+ *        return true; // Return false atau lempar Exception untuk membatalkan (rollback)
+ *    });
+ * 
+ * 2. Array Query Batch:
+ *    transactionSecure($con, [
+ *        ['query' => 'INSERT ...', 'params' => [...], 'types' => '...'],
+ *        ['query' => 'UPDATE ...', 'params' => [...], 'types' => '...'],
+ *    ]);
+ * 
+ * @param mysqli $con Koneksi database
+ * @param callable|array $action Closure callback atau array daftar query yang dieksekusi berurutan
+ * @return mixed Return value callback, array hasil eksekusi batch, atau false jika gagal (rollback)
+ */
+function transactionSecure($con, $action)
+{
+    $GLOBALS['last_transaction_error'] = null;
+    mysqli_begin_transaction($con);
+
+    try {
+        if (is_callable($action)) {
+            $result = $action($con);
+
+            // Jika callback secara eksplisit mengembalikan false, batalkan transaksi
+            if ($result === false) {
+                mysqli_rollback($con);
+                $GLOBALS['last_transaction_error'] = "Transaksi dibatalkan karena callback mengembalikan nilai false.";
+                return false;
+            }
+
+            mysqli_commit($con);
+            return $result !== null ? $result : true;
+        } elseif (is_array($action)) {
+            $results = [];
+
+            foreach ($action as $index => $item) {
+                $q = $item['query'] ?? ($item['sql'] ?? ($item[0] ?? null));
+                $p = $item['params'] ?? ($item[1] ?? []);
+                $t = $item['types'] ?? ($item[2] ?? '');
+
+                if (empty($q)) {
+                    throw new Exception("Query pada indeks {$index} tidak boleh kosong.");
+                }
+
+                $execResult = executeSecure($con, $q, $p, $t);
+                if ($execResult === false) {
+                    throw new Exception("Query pada indeks {$index} gagal dieksekusi: " . mysqli_error($con));
+                }
+
+                $results[] = $execResult;
+            }
+
+            mysqli_commit($con);
+            return $results;
+        } else {
+            throw new InvalidArgumentException("Parameter kedua transactionSecure harus berupa callable atau array query.");
+        }
+    } catch (Throwable $e) {
+        mysqli_rollback($con);
+        $GLOBALS['last_transaction_error'] = $e->getMessage();
+        error_log("Transaction failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * ============================================
- * CONTOH PENGGUNAAN QUERY AMAN
+ * CONTOH PENGGUNAAN QUERY & TRANSAKSI AMAN
  * ============================================
  */
 
@@ -140,6 +262,56 @@ $result = querySecure($con,
 
 while ($row = mysqli_fetch_assoc($result)) {
     echo $row['name'] . ' - ' . $row['age'];
+}
+
+// 6. Transaksi Otomatis menggunakan Closure (Transfer Saldo / Multi-Query)
+$success = transactionSecure($con, function($con) {
+    // Langkah 1: Kurangi saldo akun A
+    $deduct = executeSecure($con, "UPDATE accounts SET balance = balance - ? WHERE id = ? AND balance >= ?", [100000, 1, 100000], 'dii');
+    if (!$deduct) {
+        throw new Exception("Saldo akun pengirim tidak mencukupi!");
+    }
+
+    // Langkah 2: Tambah saldo akun B
+    $add = executeSecure($con, "UPDATE accounts SET balance = balance + ? WHERE id = ?", [100000, 2], 'di');
+    if (!$add) {
+        throw new Exception("Gagal menambahkan saldo akun penerima!");
+    }
+
+    // Langkah 3: Catat mutasi / riwayat
+    $logId = executeSecure($con, "INSERT INTO mutations (from_id, to_id, amount, created_at) VALUES (?, ?, ?, NOW())", [1, 2, 100000], 'iid');
+
+    return $logId; // Transaksi sukses, otomatis di-commit
+});
+
+if ($success) {
+    echo "Transfer berhasil dengan ID mutasi: " . $success;
+} else {
+    echo "Transfer gagal dan di-rollback: " . getTransactionError();
+}
+
+// 7. Transaksi Batch Query (Array)
+$batchSuccess = transactionSecure($con, [
+    ['query' => "INSERT INTO activity_logs (user_id, activity) VALUES (?, ?)", 'params' => [1, 'Login'], 'types' => 'is'],
+    ['query' => "UPDATE users SET last_login = NOW() WHERE id = ?", 'params' => [1], 'types' => 'i']
+]);
+
+if ($batchSuccess) {
+    echo "Batch transaksi sukses dieksekusi dan di-commit!";
+} else {
+    echo "Batch transaksi gagal: " . getTransactionError();
+}
+
+// 8. Transaksi Manual (Begin, Commit, Rollback)
+beginTransaction($con);
+try {
+    executeSecure($con, "UPDATE inventory SET stock = stock - ? WHERE product_id = ?", [5, 10], 'ii');
+    executeSecure($con, "INSERT INTO order_items (order_id, product_id, qty) VALUES (?, ?, ?)", [100, 10, 5], 'iii');
+    commitTransaction($con);
+    echo "Pesanan berhasil diproses!";
+} catch (Throwable $e) {
+    rollbackTransaction($con);
+    echo "Pesanan gagal: " . $e->getMessage();
 }
 
 // ============================================
