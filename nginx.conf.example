@@ -1,38 +1,136 @@
+# ==============================================================================
+# PHMX FRAMEWORK - NGINX CONFIGURATION & AAPANEL GUIDE
+# ==============================================================================
+#
+# PANDUAN PENGATURAN DI AAPANEL (UBUNTU / NGINX ONLY):
+# ------------------------------------------------------------------------------
+# 1. Buka dashboard aaPanel -> Masuk ke menu "Website".
+# 2. Klik nama domain / website Anda.
+# 3. Klik tab "URL Rewrite" di sebelah kiri.
+# 4. Salin (copy-paste) kode di BAGIAN A ke dalam kotak URL Rewrite, lalu klik "Save".
+# 5. (Opsional tapi Direkomendasikan) Klik tab "Config", pastikan header Authorization
+#    diteruskan ke FastCGI PHP (lihat BAGIAN B).
+#
+# ==============================================================================
+
+# ==============================================================================
+# [BAGIAN A] KODE URL REWRITE KHUSUS AAPANEL
+# (Salin blok berikut langsung ke menu aaPanel -> Website -> URL Rewrite)
+# ==============================================================================
+
+# 1. REST API Gateway Routing (/api/endpoint -> /api/index.php?endpoint=...)
+location /api/ {
+    try_files $uri $uri/ @phmx_api;
+}
+
+location @phmx_api {
+    rewrite ^/api/(.*)$ /api/index.php?endpoint=$1&$query_string last;
+}
+
+# 2. Web SPA & HTMX Routing (/path -> /index.php?hal=...)
+location / {
+    try_files $uri $uri/ @phmx_web;
+}
+
+location @phmx_web {
+    rewrite ^/(.*)$ /index.php?hal=$1&$query_string last;
+}
+
+# 3. Proteksi Folder Internal (Cegah akses langsung publik)
+location ~* ^/(pages|actions|tmp|database|\.agents|\.git) {
+    deny all;
+    return 403;
+}
+
+# 4. Proteksi Folder Uploads (Larang eksekusi skrip server di folder uploads)
+location ~* ^/uploads/.*\.(php|phtml|php3|php4|php5|php7|phps|phar|sh|pl|cgi|exe)$ {
+    deny all;
+    return 403;
+}
+
+# ==============================================================================
+# [BAGIAN B] FASTCGI AUTHORIZATION HEADER (UNTUK BEARER TOKEN API DI AAPANEL)
+# Jika API mobile membutuhkan Bearer token di header 'Authorization',
+# pastikan baris berikut ada di dalam blok PHP Nginx (biasanya di aaPanel -> Website -> Config):
+#
+# fastcgi_param HTTP_AUTHORIZATION $http_authorization;
+# ==============================================================================
+
+
+# ==============================================================================
+# [BAGIAN C] VIRTUAL HOST SERVER BLOCK LENGKAP
+# (Gunakan ini jika Anda mengonfigurasi Nginx secara manual di VPS /etc/nginx/sites-available)
+# ==============================================================================
+
 server {
     listen 80;
+    listen [::]:80;
     server_name your_domain.com;
-    root /var/www/your_project/PHMX;
+    root /www/wwwroot/your_domain; # Sesuaikan direktori proyek Anda
     index index.php index.html index.htm;
 
-    # ==========================================
-    # PHMX ROUTING & SECURITY
-    # ==========================================
+    charset utf-8;
+    client_max_body_size 20M;
 
-    # 1. Routing HTML5 History API (Mengarahkan semua request ke index.php)
+    # Gzip Compression untuk Performa Maksimal
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
+
+    # 1. REST API Gateway
+    location /api/ {
+        try_files $uri $uri/ @phmx_api;
+    }
+
+    location @phmx_api {
+        rewrite ^/api/(.*)$ /api/index.php?endpoint=$1&$query_string last;
+    }
+
+    # 2. Web SPA Routing
     location / {
-        try_files $uri $uri/ /index.php?hal=$uri;
+        try_files $uri $uri/ @phmx_web;
     }
 
-    # 2. Blokir akses langsung ke folder pages/
-    location ^~ /pages/ {
+    location @phmx_web {
+        rewrite ^/(.*)$ /index.php?hal=$1&$query_string last;
+    }
+
+    # 3. Proteksi Keamanan Folder Internal
+    location ~* ^/(pages|actions|tmp|database|\.agents|\.git) {
         deny all;
         return 403;
     }
 
-    # 3. Blokir akses langsung ke folder actions/
-    location ^~ /actions/ {
+    # 4. Larang Eksekusi Skrip di uploads/
+    location ~* ^/uploads/.*\.(php|phtml|php3|php4|php5|php7|phps|phar|sh|pl|cgi|exe)$ {
         deny all;
         return 403;
     }
 
-    # Konfigurasi standar eksekusi PHP
+    # 5. Blokir file sensitif tersembunyi
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+
+    # 6. Pemrosesan PHP FastCGI
     location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/var/run/php/php8.1-fpm.sock; # Sesuaikan versi PHP
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param HTTP_AUTHORIZATION $http_authorization;
+        
+        # Sesuaikan dengan socket PHP-FPM di server Anda (misal PHP 8.1 / 8.2)
+        fastcgi_pass unix:/tmp/php-cgi-82.sock; # aaPanel default socket
+        # fastcgi_pass unix:/var/run/php/php8.2-fpm.sock; # Ubuntu default socket
+        
+        fastcgi_index index.php;
+        fastcgi_buffer_size 128k;
+        fastcgi_buffers 256 16k;
+        fastcgi_busy_buffers_size 256k;
+        fastcgi_temp_file_write_size 256k;
     }
 
-    # Blokir akses ke file .htaccess dan sistem
-    location ~ /\.ht {
-        deny all;
+    # 7. Caching Aset Statis Browser
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|webp|woff|woff2|ttf|eot)$ {
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
     }
 }
