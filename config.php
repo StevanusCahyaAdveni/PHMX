@@ -15,11 +15,15 @@ if (session_status() === PHP_SESSION_NONE) {
 
 
 // Deteksi environment (Local vs Production)
-$is_localhost = false;
-if (php_sapi_name() === 'cli') {
-    $is_localhost = true; // Beri akses lokal jika dipanggil lewat terminal (PHP CLI)
-} elseif (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) {
-    $is_localhost = true; // Akses web browser di localhost
+$is_localhost = true;
+if(isset($_SERVER['HTTP_HOST'])){
+    if (strpos($_SERVER['HTTP_HOST'], 'localhost') === false) {
+        $is_localhost = false;
+    }
+} else {
+    if (strpos(__DIR__, 'xampp') === false && strpos(__DIR__, 'htdocs') === false) {
+        $is_localhost = false;
+    }
 }
 
 if ($is_localhost) {
