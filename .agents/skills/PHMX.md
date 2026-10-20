@@ -1,9 +1,15 @@
 ---
 name: phmx_framework
-description: "Aturan arsitektur 3-lapisan, CLI phmx (pembuatan modul CRUD & migrasi database), async deferred UI 0ms, TCL transaksi database, REST API, autentikasi ganda, dan fungsi inti PHMX."
+description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (pembuatan modul CRUD & migrasi database), async deferred UI 0ms, TCL transaksi database, REST API, autentikasi ganda, dan fungsi inti PHMX. WAJIB DIBACA AI AGENT SETIAP KALI INGIN MELAKUKAN TUGAS."
 ---
 
 # PHMX Framework — AI Agent Cheatsheet & Guardrails
+
+> [!CAUTION]
+> ### PERINTAH WAJIB UNTUK AI AGENT (MANDATORY INSTRUCTION)
+> **SETIAP KALI AI AGENT INGIN MELAKUKAN ATAU MEMULAI TUGAS APAPUN PADA CODEBASE INI, AI AGENT WAJIB MEMBACA DAN MEMAHAMI SELURUH ISI FILE `[.agents/skills/PHMX.md](file:///d:/xampp/htdocs/PersonalProject/PHMX/.agents/skills/PHMX.md)` INI TERLEBIH DAHULU SEBELUM MENULIS, MENGUBAH KODE, MEMBUAT FILE, ATAU MENJALANKAN QUERY!**
+>
+> **Dilarang keras berasumsi, melupakan aturan, atau menyimpang dari arsitektur framework yang telah disepakati di bawah ini!**
 
 > [!IMPORTANT]
 > **ATURAN MUTLAK: PEMBUATAN FILE BARU & MIGRASI DATABASE**

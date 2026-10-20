@@ -12,3 +12,4 @@ CREATE TABLE `users` (
   UNIQUE KEY `username` (`username`),
   UNIQUE KEY `email` (`email`)
 ) ENGINE = InnoDB;
+ALTER TABLE `users` ADD COLUMN `api_token` VARCHAR(64) UNIQUE NULL AFTER `password`;
