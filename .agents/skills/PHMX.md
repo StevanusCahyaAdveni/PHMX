@@ -32,6 +32,12 @@ description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (p
 ## 1. Navigasi SPA & Async Deferred UI (0ms Transition)
 
 - **Navigasi SPA**: Tag `<body>` di `index.php` menggunakan `hx-boost="true"` (Slash URL / HTML5 History API).
+- **JEBAKAN hx-target INHERITANCE**: Atribut `hx-target` HTMX **diwariskan ke elemen anak**. Link navigasi antar-halaman (`<a href="...">`) yang berada DI DALAM `<form hx-target="...">` akan menukar konten halaman baru ke target form tersebut (bukan `<body>`), sehingga tampilan halaman jadi bercampur/rusak. **SELALU tambahkan `hx-target="body"` pada link navigasi yang berada di dalam form**:
+  ```html
+  <form hx-post="?act=auth/login" hx-target="#login-alert">
+      <a href="auth/register" hx-target="body">Belum punya akun? Daftar</a>
+  </form>
+  ```
 - **Pola Lazy-Load Skeleton**: Untuk tabel atau halaman dengan query data berat, **WAJIB** gunakan kontainer lazy-load:
   ```php
   <?= async_start('Memuat data pengguna...', 'table-container', 'load_users') ?>
@@ -41,10 +47,47 @@ description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (p
   <?= async_end('load_users') ?>
   ```
   *(Sistem otomatis memanggil `session_write_close()` untuk menghindari session lock, membatalkan request lama via auto-abort saat pindah halaman, dan menampilkan shell halaman seketika 0ms).*
+- **Smart Component Polling (Hanya Komponen Tertentu, Bukan Body)**:
+  Untuk me-refresh widget, statistik, atau tabel tertentu secara berkala di latar belakang tanpa me-reload `<body>`:
+  ```php
+  <?= poll_start('5s', 'live_stats') ?>
+  <?php if (is_poll('live_stats')): ?>
+      <!-- Konten komponen yang di-refresh tiap 5 detik -->
+  <?php endif; ?>
+  <?= poll_end('live_stats') ?>
+  ```
+  *(Atau tambahkan argumen ke-4 pada `async_start('Memuat...', 'table-container', 'load_users', '10s')`. Dilengkapi **Smart DOM Diff** `X-PHMX-Hash` / HTTP `204 No Content` agar DOM tidak di-reset jika isi HTML tidak berubah, **Auto-Pause** saat tab tidak aktif atau user sedang mengetik di dalam komponen, serta **Silent Polling** tanpa memicu NProgress).*
 
 ---
 
-## 2. Database & Transaksi TCL (ACID Safe)
+## 2. Validasi Rule-Based (Sanitasi + Validasi Satu Baris) — WAJIB di `actions/`
+
+- **DILARANG** menulis validasi manual (`if (empty(...))` berulang) atau query cek duplikat manual. **SELALU** gunakan helper validasi:
+  - **Batch (disarankan)** — semua error tampil sekaligus sebagai daftar bullet SweetAlert, hanya field invalid yang dikosongkan:
+    ```php
+    $data = saniFields($_POST, [
+        'username' => 'required|alphaNum|minChar:4|unique:users,username',
+        'email'    => 'required|email|unique:users,email',
+    ], [
+        'username' => 'Username',
+        'email'    => 'Email',
+    ]);
+    ```
+  - **Per-field** — satu baris, auto exit di error pertama:
+    ```php
+    $nama = sani($_POST['nama'] ?? '', 'required|minChar:8', 'Nama', 'nama');
+    ```
+- **PASSWORD TIDAK BOLEH lewat `sani()`** (`htmlspecialchars` merusak `password_verify()`). Validasi langsung dengan `validateRules()`:
+  ```php
+  $errs = validateRules($_POST['password'] ?? '', 'required|minChar:8|confirmed', 'Password', 'password');
+  if ($errs) htmxMessage($errs, 'danger', [], ['password', 'password_confirmation']);
+  ```
+- **Rules tersedia**: `required`, `minChar:n`, `maxChar:n`, `min:n`, `max:n`, `email`, `numeric`, `int`, `alpha`, `alphaNum`, `url`, `phone`, `regex:/.../`, `in:a,b,c`, `confirmed`, `unique:table,col[,id_abaikan]` (id untuk update agar tidak bentrok data sendiri).
+- **`htmxMessage($msg, $type, $keepFields, $clearFields)`**: `$msg` boleh string atau **array** (dirender daftar bullet); `$clearFields` mengosongkan HANYA field bermasalah, field lain tetap terisi.
+
+---
+
+## 3. Database & Transaksi TCL (ACID Safe)
 
 - **Prepared Statements**:
   - `querySecure($con, $sql, $params, $types)` -> Untuk query `SELECT`.
@@ -65,7 +108,7 @@ description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (p
 
 ---
 
-## 3. REST API Gateway & Autentikasi Ganda
+## 4. REST API Gateway & Autentikasi Ganda
 
 - **Gateway Terpusat (`/api/`)**: Semua request diarahkan ke `api/index.php?endpoint=...`.
 - **Standar Respons JSON**: HANYA gunakan `response($success, $message, $data)`.
@@ -78,7 +121,7 @@ description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (p
 
 ---
 
-## 4. Web Push Notification (VAPID) & Antrean Background
+## 5. Web Push Notification (VAPID) & Antrean Background
 
 - **Kirim Tunggal**: `sendWebPush($subscription, $payload)` (dilengkapi anti-SSRF & validasi HTTPS).
 - **Kirim Batch Paralel**: `sendWebPushBatch($subscriptions, $payload)` (menggunakan `curl_multi_exec` concurrent non-blocking).
@@ -87,11 +130,13 @@ description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (p
 
 ---
 
-## 5. Ringkasan Core Helper Functions
+## 6. Ringkasan Core Helper Functions
 
 | Helper | Kegunaan |
 |---|---|
-| `sani($data)` | Sanitasi input XSS |
+| `sani($data, $rules, $label, $fieldName)` | Sanitasi input XSS + validasi rules opsional (auto `htmxMessage` + exit jika gagal) |
+| `saniFields($input, $definitions, $labels)` | Validasi batch seluruh form; semua error sekaligus (daftar bullet), hanya field invalid yang dikosongkan |
+| `validateRules($value, $rules, $label, $fieldName)` | Validasi tanpa sanitasi (untuk password) — return array pesan error |
 | `asset($path)` | Smart versioning CSS/JS via `filemtime()` |
 | `uploadFile($file, $dir, $size, $types)` | Upload aman + auto-compress + whitelist |
 | `generate_uuid()` | Generate UUID v4 36-karakter |
@@ -99,11 +144,13 @@ description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (p
 | `generateSearchForm($inputs, $btn)` | Form filter & pencarian multi-kolom |
 | `htmxReloadWithMessage($msg, $type)` | Refresh halaman aktif dengan notifikasi |
 | `htmxRedirectWithMessage($url, $msg, $type)` | Pindah halaman SPA dengan notifikasi |
-| `htmxMessage($msg, $type)` | Alert respon AJAX HTMX |
+| `htmxMessage($msg, $type, $keepFields, $clearFields)` | Alert respon AJAX HTMX; `$msg` boleh array (daftar bullet); `$clearFields` kosongkan hanya field tertentu |
+| `async_start($text, $id, $key, $pollInterval)` | Membuka container lazy-load async (opsional dengan interval polling komponen) |
+| `poll_start($interval, $key, $id, $loadingText)` | Membuka container khusus Smart Component Polling (`is_poll($key)` & `poll_end($key)`) |
 
 ---
 
-## 6. Daftar Perintah CLI (`phmx`)
+## 7. Daftar Perintah CLI (`phmx`)
 
 - **`php phmx make:crud <folder>/<file>`** : **Membuat kerangka modul 3-lapisan (`pages/`, `actions/`, `api/methods/`)**
 - **`php phmx migrate`** : **Menjalankan seluruh file migrasi SQL baru di `database/`**

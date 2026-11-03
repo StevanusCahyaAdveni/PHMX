@@ -29,11 +29,13 @@
                         </div>
                         <div class="mb-4">
                             <label class="form-label text-muted small fw-bold">Password</label>
-                            <input type="password" name="password" class="form-control" required minlength="6">
+                            <input type="password" name="password" class="form-control" required minlength="8">
+                            <label class="form-label text-muted small fw-bold mt-3">Konfirmasi Password</label>
+                            <input type="password" name="password_confirmation" class="form-control" required minlength="8">
                         </div>
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary">Daftar</button>
-                            <a href="auth/login" class="btn btn-outline-secondary">Sudah punya akun? Login</a>
+                            <a href="auth/login" class="btn btn-outline-secondary" hx-target="body">Sudah punya akun? Login</a>
                         </div>
                     </form>
                 </div>

@@ -4,8 +4,28 @@
         <h2 class="fw-bold text-dark">Manajemen Pengguna</h2>
     </div>
     <div class="card shadow-sm border-0 mb-2">
-        <div class="card-body d-flex justify-content-between align-items-center">
+        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
             <p class="mb-0">Selamat datang, <strong><?= htmlspecialchars($_SESSION['fullname']) ?></strong> (<?= htmlspecialchars($_SESSION['role']) ?>)!</p>
+
+            <!-- CONTOH 1: KOMPONEN POLLING KHUSUS WIDGET STATISTIK (Refresh Tiap 5 Detik, Smart DOM Diff 204) -->
+            <?= poll_start('5s', 'user_stats', 'poll-user-stats', null) ?>
+            <?php if (is_poll('user_stats')): ?>
+                <?php
+                $statsRes = querySecure($con, "SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as total_admin,
+                    SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END) as total_user
+                    FROM users");
+                $stats = mysqli_fetch_assoc($statsRes) ?: ['total' => 0, 'total_admin' => 0, 'total_user' => 0];
+                ?>
+                <div class="d-flex align-items-center gap-2 small">
+                    <span class="badge bg-dark">Total: <?= (int)$stats['total'] ?></span>
+                    <span class="badge bg-primary">Admin: <?= (int)$stats['total_admin'] ?></span>
+                    <span class="badge bg-secondary">User: <?= (int)$stats['total_user'] ?></span>
+                    <span class="text-success fw-semibold ms-1" title="Smart Component Polling aktif (5s)">● Live</span>
+                </div>
+            <?php endif; ?>
+            <?= poll_end('user_stats') ?>
         </div>
     </div>
 
@@ -23,8 +43,8 @@
             ]) ?>
             <br>
 
-        <!-- CONTAINER TABEL ASINKRONUS (SIMPEL & OTOMATIS) -->
-        <?= async_start('Sedang memuat data pengguna...') ?>
+        <!-- CONTOH 2: CONTAINER TABEL ASINKRONUS + SMART POLLING (Tiap 10 Detik) -->
+        <?= async_start('Sedang memuat data pengguna...', 'async-wrapper', '_async', '10s') ?>
         <?php if (is_async()): ?>
 
             <div class="table-responsive">

@@ -23,7 +23,7 @@
                         </div>
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary">Login</button>
-                            <a href="auth/register" class="btn btn-outline-secondary">Belum punya akun? Daftar</a>
+                            <a href="auth/register" class="btn btn-outline-secondary" hx-target="body">Belum punya akun? Daftar</a>
                         </div>
                     </form>
                 </div>

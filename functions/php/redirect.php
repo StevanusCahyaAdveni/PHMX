@@ -77,21 +77,38 @@ function htmxRedirectWithMessage($hash, $message, $type = 'success', $delay = 15
  * HTMX Khusus: Tampilkan Pesan Saja (Berhenti eksekusi)
  * Membersihkan form yang aktif (kecuali field tertentu).
  */
-function htmxMessage($message, $type = 'danger', $keepFields = [])
+function htmxMessage($message, $type = 'danger', $keepFields = [], $clearFields = null)
 {
     $icon = ($type === 'danger') ? 'error' : $type;
     $msgJson = json_encode($message, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     $iconJson = json_encode($icon);
     $keepJson = json_encode($keepFields);
+    // Mode "clearFields": hanya kosongkan field bermasalah, sisanya dipertahankan.
+    // Mode default (keepFields): kosongkan semua kecuali field yang dipertahankan.
+    $clearJson = ($clearFields !== null) ? json_encode($clearFields) : 'null';
     
     echo "<script>
             (function(){
                 let keep = {$keepJson};
+                let clearOnly = {$clearJson};
+                let msg = {$msgJson};
+                let isList = Array.isArray(msg);
+                let toastOpts = isList
+                  ? { icon: {$iconJson}, html: '<div style=\"text-align:left\">' + msg.map(m => '&bull; ' + m).join('<br>') + '</div>' }
+                  : { icon: {$iconJson}, title: msg };
                 document.querySelectorAll('form').forEach(f => {
                     Array.from(f.elements).forEach(el => {
-                        if (el.name && !keep.includes(el.name) && el.type !== 'hidden') {
-                            if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
-                            else el.value = '';
+                        if (el.name && el.type !== 'hidden') {
+                            if (clearOnly !== null) {
+                                // Hanya kosongkan field yang bermasalah
+                                if (clearOnly.includes(el.name)) {
+                                    if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
+                                    else el.value = '';
+                                }
+                            } else if (!keep.includes(el.name)) {
+                                if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
+                                else el.value = '';
+                            }
                         }
                     });
                 });
@@ -103,10 +120,7 @@ function htmxMessage($message, $type = 'danger', $keepFields = [])
                   timer: 3000,
                   timerProgressBar: true
                 });
-                Toast.fire({
-                  icon: {$iconJson},
-                  title: {$msgJson}
-                });
+                Toast.fire(toastOpts);
             })();
           </script>";
     exit;

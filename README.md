@@ -11,7 +11,9 @@
 ## Keunggulan Utama
 
 1. **SPA Tanpa Reload (Single Page Application)**: Navigasi antar halaman menggunakan *Slash URL / Auto-Root* via HTML5 History API dan `hx-boost="true"` dari HTMX.
-2. **Async Deferred Loading (Transisi 0ms / Non-Blocking)**: Render shell UI instan dengan kontainer lazy-load (`async_start()` & `async_end()`) yang memuat data berat di latar belakang tanpa mengunci sesi PHP (`session_write_close()`) dan mendukung pembatalan request otomatis (*auto-abort*) saat pengguna berpindah halaman.
+2. **Async Deferred Loading & Smart Component Polling (Transisi 0ms / Non-Blocking)**:
+   - Render shell UI instan dengan kontainer lazy-load (`async_start()` & `async_end()`) yang memuat data berat di latar belakang tanpa mengunci sesi PHP (`session_write_close()`) dan mendukung pembatalan request otomatis (*auto-abort*) saat pengguna berpindah halaman.
+   - **Smart Component Polling (`poll_start()` / `is_poll()` / `poll_end()`)**: Pembaruan berkala khusus komponen/widget tertentu (bukan `<body>`) yang dilengkapi **Smart DOM Diff** (`X-PHMX-Hash` & HTTP `204 No Content` sehingga DOM tidak di-reset jika data tidak berubah), **Auto-Pause** saat tab browser tidak aktif (*Page Visibility API*) atau pengguna sedang mengetik di dalam komponen, serta **Silent Polling** tanpa memicu loading bar `NProgress`.
 3. **Database Transaction Control Language (TCL - ACID)**: Wrapper transaksi terpadu `transactionSecure($con, $callback)` (mendukung closure atau batch array query) dengan auto-commit & auto-rollback serta fungsi manual (`beginTransaction()`, `commitTransaction()`, `rollbackTransaction()`) demi menjamin integritas dan konsistensi data.
 4. **PWA & Web Push Notification Bawaan (Batching & Background Queue)**:
    - Dilengkapi *Service Worker* dan *Manifest* siap pakai (dapat diaktifkan/dinonaktifkan via `$pwa_enabled` di `config.php`).
@@ -36,6 +38,7 @@
     - Otorisasi folder internal Apache 2.4 (`Require all denied`) dan blokir akses langsung Nginx.
 11. **CRUD & API Generator (Web & CLI)**: Pembuatan modul CRUD web asinkronus, API JSON, dan file migrasi database secara otomatis dalam hitungan detik.
 12. **Magic Pagination & Multi-Column Search**: Paginasi dan form pencarian multi-kolom hanya dengan 1 baris kode.
+13. **Validasi Rule-Based Terintegrasi**: Validasi deklaratif satu baris via `sani($val, 'required|email|unique:users,email')` atau batch `saniFields()` — semua error tampil sekaligus dalam daftar bullet SweetAlert, hanya field invalid yang dikosongkan, dan terintegrasi otomatis dengan HTMX.
 
 ---
 
@@ -102,9 +105,15 @@ Form web mengirim request ke action menggunakan `hx-post="?act=..."`:
 ```php
 // actions/users/save.php
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = sani($_POST['username'] ?? '');
-    
-    $success = executeSecure($con, "INSERT INTO users (id, username) VALUES (?, ?)", [generate_uuid(), $username], 'ss');
+    // Batch: semua field divalidasi, semua error tampil sekaligus (daftar bullet)
+    $data = saniFields($_POST, [
+        'username' => 'required|alphaNum|minChar:4|unique:users,username',
+    ], [
+        'username' => 'Username',
+    ]);
+    // $data['username'] sudah bersih & valid
+
+    $success = executeSecure($con, "INSERT INTO users (id, username) VALUES (?, ?)", [generate_uuid(), $data['username']], 'ss');
     if ($success) {
         htmxReloadWithMessage('Data pengguna berhasil disimpan!', 'success');
     } else {
@@ -112,6 +121,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ```
+
+---
+
+## 1b. Validasi Rule-Based (Sanitasi + Validasi Satu Baris)
+
+Helper validasi bawaan memungkinkan sanitasi dan validasi dilakukan dalam satu baris. Jika validasi gagal, sistem otomatis menampilkan toast SweetAlert (daftar bullet jika error lebih dari satu), mengosongkan **hanya field yang bermasalah**, dan menghentikan eksekusi (`exit`).
+
+### Gaya Batch — Semua Error Sekaligus (disarankan untuk form)
+```php
+$data = saniFields($_POST, [
+    'fullname' => 'required|alpha|minChar:3',
+    'username' => 'required|alphaNum|minChar:4|unique:users,username',
+    'email'    => 'required|email|unique:users,email',
+], [
+    'fullname' => 'Nama lengkap',
+    'username' => 'Username',
+    'email'    => 'Email',
+]);
+// $data['fullname'], dst. sudah bersih & valid
+```
+
+### Gaya Per-Field — Satu Baris per Field
+```php
+$nama = sani($_POST['nama'] ?? '', 'required|minChar:8', 'Nama', 'nama');
+```
+
+### Validasi Tanpa Sanitasi (untuk Password)
+Password **tidak boleh** melewati `sani()` karena `htmlspecialchars` mengubah karakter spesial dan merusak `password_verify()`. Gunakan `validateRules()` langsung:
+```php
+$password = $_POST['password'] ?? '';
+$errs = validateRules($password, 'required|minChar:8|confirmed', 'Password', 'password');
+if ($errs) {
+    htmxMessage($errs, 'danger', [], ['password', 'password_confirmation']);
+}
+```
+
+### Daftar Rules Validasi
+
+| Rule | Keterangan | Contoh |
+|---|---|---|
+| `required` | Wajib diisi | `'required'` |
+| `minChar:n` / `maxChar:n` | Panjang karakter minimal/maksimal | `'minChar:8'` |
+| `min:n` / `max:n` | Nilai angka minimal/maksimal | `'min:0'` |
+| `email` | Format email valid | `'email'` |
+| `numeric` / `int` | Angka / bilangan bulat | `'int'` |
+| `alpha` | Hanya huruf (spasi diperbolehkan) | `'alpha'` |
+| `alphaNum` | Hanya huruf & angka | `'alphaNum'` |
+| `url` | Format URL valid | `'url'` |
+| `phone` | Format nomor telepon | `'phone'` |
+| `regex:/.../` | Pola regex custom | `'regex:/^[A-Z]+$/i'` |
+| `in:a,b,c` | Nilai harus salah satu dari daftar | `'in:admin,user'` |
+| `confirmed` | Sama dengan field `<nama>_confirmation` | `'confirmed'` |
+| `unique:table,col[,id]` | Belum dipakai di tabel (id = abaikan baris tsb, untuk update) | `'unique:users,email,' . $id` |
+
+
+---
+
+## 1c. Async Deferred Loading & Smart Component Polling
+
+PHMX menyediakan sistem pemuatan asinkronus (0ms transisi halaman) dan *polling* pintar yang terisolasi **hanya pada komponen tertentu** (bukan me-reload `<body>`).
+
+### A. Lazy-Load Kontainer Berat (`async_start` & `async_end`)
+Gunakan untuk tabel atau komponen dengan query berat agar kerangka halaman langsung tampil seketika (0ms):
+```php
+<?= async_start('Sedang memuat data pengguna...', 'async-wrapper', '_async') ?>
+<?php if (is_async('_async')): ?>
+    <!-- Query SELECT berat & render tabel di sini -->
+<?php endif; ?>
+<?= async_end('_async') ?>
+```
+*(Opsional: Tambahkan argumen ke-4 seperti `'10s'` pada `async_start(..., 'async-wrapper', '_async', '10s')` jika ingin tabel tersebut juga memperbarui dirinya secara berkala tiap 10 detik).*
+
+### B. Smart Component Polling (`poll_start`, `is_poll`, `poll_end`)
+Gunakan untuk me-refresh widget statistik, indikator status, atau komponen spesifik secara berkala. Anda dapat memasang beberapa komponen polling sekaligus dalam satu halaman dengan `$key` unik:
+```php
+<!-- Refresh komponen tiap 5 detik (argumen ke-4 null = tanpa spinner awal) -->
+<?= poll_start('5s', 'user_stats', 'poll-user-stats', null) ?>
+<?php if (is_poll('user_stats')): ?>
+    <div class="d-flex align-items-center gap-2 small">
+        <span class="badge bg-dark">Total: <?= (int)$stats['total'] ?></span>
+        <span class="text-success fw-semibold">● Live</span>
+    </div>
+<?php endif; ?>
+<?= poll_end('user_stats') ?>
+```
+
+**Keunggulan Smart Component Polling PHMX:**
+- **Smart DOM Diff (`X-PHMX-Hash` & HTTP `204 No Content`)**: Server menghitung hash MD5 dari HTML komponen. Jika pada siklus polling berikutnya isi HTML tidak berubah, server mengembalikan status `204 No Content` tanpa body sehingga menghemat bandwidth dan **tidak me-reset DOM komponen** (fokus input, *hover*, atau teks yang diblok tetap aman).
+- **Auto-Pause Cerdas**: Polling otomatis berhenti sementara saat tab browser tidak aktif (*Page Visibility API* `!document.hidden`) atau saat pengguna sedang fokus mengetik pada `<input>`, `<textarea>`, atau `<select>` di dalam komponen tersebut.
+- **Silent Polling & Instant Abort**: Berjalan senyap di latar belakang tanpa memicu progress bar `NProgress`, serta otomatis dibatalkan (`xhr.abort()`) seketika saat pengguna berpindah halaman SPA.
+- **Isolasi Eksekusi (`session_write_close()` & Early Exit)**: Setiap request komponen langsung melepaskan *session lock* PHP dan menghentikan eksekusi (`exit`) tepat di `poll_end()` / `async_end()`, sehingga query milik komponen lain di bawahnya tidak ikut dijalankan.
 
 ---
 
@@ -229,7 +329,9 @@ Fitur Remember Me tersimpan di `localStorage` peramban client:
 
 | Fungsi | Kegunaan | Contoh Pemakaian |
 |---|---|---|
-| `sani($data)` | Sanitasi string/array dari XSS | `$nama = sani($_POST['nama']);` |
+| `sani($data, $rules, $label, $fieldName)` | Sanitasi string/array dari XSS + validasi rules opsional (auto `htmxMessage` + exit jika gagal) | `$nama = sani($_POST['nama'], 'required|minChar:8', 'Nama', 'nama');` |
+| `saniFields($input, $definitions, $labels)` | Sanitasi + validasi batch seluruh form; semua error tampil sekaligus dalam daftar bullet, hanya field invalid yang dikosongkan | `$data = saniFields($_POST, ['email' => 'required\|email'], ['email' => 'Email']);` |
+| `validateRules($value, $rules, $label, $fieldName)` | Validasi nilai terhadap rules (tanpa sanitasi) — cocok untuk password | `$errs = validateRules($password, 'required\|minChar:8', 'Password', 'password');` |
 | `querySecure($con, $sql, $params, $types)` | Eksekusi SELECT prepared statement | `$users = querySecure($con, "SELECT * FROM users WHERE role=?", ['admin'], 's');` |
 | `executeSecure($con, $sql, $params, $types)` | Eksekusi INSERT/UPDATE/DELETE | `executeSecure($con, "DELETE FROM users WHERE id=?", [$id], 's');` |
 | `transactionSecure($con, $action)` | Transaksi TCL (ACID) otomatis (closure/batch) | `transactionSecure($con, function($c) { ... });` |
@@ -246,12 +348,16 @@ Fitur Remember Me tersimpan di `localStorage` peramban client:
 | `generate_uuid()` | Generate UUID v4 36-karakter | `$id = generate_uuid();` |
 | `htmxReloadWithMessage($msg, $type, $delay, $target)` | Reload asinkronus (pertahankan scroll posisi) | `htmxReloadWithMessage('Data berhasil disimpan!', 'success');` |
 | `htmxRedirectWithMessage($url, $msg, $type, $delay, $keepFields, $target)` | Redirect halaman SPA dengan pesan | `htmxRedirectWithMessage('dashboard', 'Selamat datang!', 'success');` |
-| `htmxMessage($msg, $type)` | Tampilkan alert tanpa refresh | `htmxMessage('Form belum lengkap', 'danger');` |
+| `htmxMessage($msg, $type)` | Tampilkan alert tanpa refresh; `$msg` boleh string atau **array** (dirender sebagai daftar bullet). Param ke-4 `$clearFields` mengosongkan hanya field tertentu | `htmxMessage('Form belum lengkap', 'danger');` |
 | `paginationQuery($con, $sql, $params, $types, $limit, $baseUrl)` | Paginasi data otomatis | `$paginated = paginationQuery($con, "SELECT * FROM products", [], "", 10, 'products');` |
 | `generateSearchForm($inputs, $button)` | Pembuat form pencarian dinamis | `generateSearchForm([['name' => 'search_nama', 'placeholder' => 'Cari...']]);` |
-| `async_start($text, $id, $key)` | Pembuka kontainer lazy-load (0ms shell) | `<?= async_start('Memuat data tabel...') ?>` |
-| `is_async($key)` | Cek apakah request async deferred data | `if (is_async()) { ... }` |
-| `async_end($key)` | Penutup kontainer lazy-load & auto exit | `<?= async_end() ?>` |
+| `async_start($text, $id, $key, $pollInterval)` | Pembuka kontainer lazy-load (0ms shell) + opsional interval polling | `<?= async_start('Memuat data...', 'async-wrapper', '_async', '10s') ?>` |
+| `is_async($key)` | Cek apakah request berasal dari kontainer async | `if (is_async('_async')) { ... }` |
+| `async_end($key)` | Penutup kontainer lazy-load, Smart DOM Diff (`204`), & auto exit | `<?= async_end('_async') ?>` |
+| `poll_start($interval, $key, $id, $loadingText)` | Pembuka kontainer khusus Smart Component Polling | `<?= poll_start('5s', 'user_stats', 'poll-user-stats', null) ?>` |
+| `is_poll($key)` | Cek apakah request berasal dari kontainer polling komponen | `if (is_poll('user_stats')) { ... }` |
+| `poll_end($key)` | Penutup kontainer polling komponen, Smart DOM Diff (`204`), & auto exit | `<?= poll_end('user_stats') ?>` |
+| `async_url($extraParams, $key)` / `poll_url($extraParams, $key)` | Menghasilkan URL request async/polling komponen dengan query string aktif | `$url = poll_url([], 'user_stats');` |
 
 ---
 

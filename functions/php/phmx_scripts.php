@@ -34,34 +34,63 @@ function load_phmx_scripts() {
         if (!window._phmx_core_initialized) {
             window._phmx_core_initialized = true;
 
-            // Injeksi otomatis CSRF Token ke setiap HTMX Request
+            // Injeksi otomatis CSRF Token & Smart DOM Diff Hash (X-PHMX-Hash) ke setiap HTMX Request
             document.addEventListener('htmx:configRequest', function(evt) {
                 var csrfToken = document.querySelector('meta[name=\"csrf-token\"]');
                 if (csrfToken) {
                     evt.detail.headers['X-CSRF-Token'] = csrfToken.content;
                 }
+
+                // Kirim hash komponen sebelumnya jika request berasal dari container async/polling yang sama
+                var elt = evt.detail && evt.detail.elt;
+                var reqPath = (evt.detail && evt.detail.path) || '';
+                if (elt && elt.dataset && elt.dataset.phmxHash && elt.dataset.phmxPath === reqPath) {
+                    evt.detail.headers['X-PHMX-Hash'] = elt.dataset.phmxHash;
+                }
             });
 
-            // Set untuk melacak request XHR asinkronus (latar belakang) yang aktif
+            // Set untuk melacak request XHR asinkronus & polling latar belakang yang aktif
             const activeAsyncXhrs = new Set();
 
             if (typeof NProgress !== 'undefined') {
                 NProgress.configure({ showSpinner: false });
             }
 
-            // Top Progress Bar (NProgress) & Instant Async Abort Saat Navigasi
+            // Top Progress Bar (NProgress), Smart Poll Pause & Instant Async/Poll Abort Saat Navigasi
             document.addEventListener('htmx:beforeRequest', function(evt) {
                 const isBoostedNav = evt.detail && evt.detail.boosted;
                 const targetEl = evt.target;
                 const requestPath = (evt.detail && evt.detail.pathInfo && evt.detail.pathInfo.requestPath) || 
                                     (evt.detail && evt.detail.requestConfig && evt.detail.requestConfig.path) || '';
-                const isAsync = (targetEl && targetEl.id === 'async-wrapper') || 
-                                (targetEl && targetEl.getAttribute && targetEl.getAttribute('hx-get') && targetEl.getAttribute('hx-get').includes('_async=')) ||
-                                requestPath.includes('_async=');
+                const isPoll = Boolean(targetEl && targetEl.getAttribute && (
+                                targetEl.hasAttribute('data-phmx-poll') ||
+                                targetEl.id === 'poll-wrapper' ||
+                                (targetEl.getAttribute('hx-get') && targetEl.getAttribute('hx-get').includes('_poll='))
+                              )) || requestPath.includes('_poll=');
+                const isAsync = isPoll || Boolean(targetEl && targetEl.getAttribute && (
+                                targetEl.hasAttribute('data-phmx-async') ||
+                                targetEl.id === 'async-wrapper' ||
+                                (targetEl.getAttribute('hx-get') && targetEl.getAttribute('hx-get').includes('_async='))
+                              )) || requestPath.includes('_async=');
+
+                if (isPoll && !isBoostedNav) {
+                    // 1. Auto-Pause saat tab browser tidak aktif (Page Visibility API)
+                    if (document.hidden) {
+                        evt.preventDefault();
+                        return;
+                    }
+                    // 2. Auto-Pause saat pengguna sedang aktif mengetik di dalam komponen polling (setelah initial load)
+                    if (targetEl && targetEl.dataset && targetEl.dataset.phmxHash && document.activeElement &&
+                        targetEl.contains(document.activeElement) &&
+                        ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+                        evt.preventDefault();
+                        return;
+                    }
+                }
 
                 if (isBoostedNav) {
                     // Jika pengguna berpindah ke halaman baru (klik link/navbar),
-                    // batalkan SEMUA pemuatan data async latar belakang seketika agar koneksi & thread langsung bebas!
+                    // batalkan SEMUA pemuatan data async & polling latar belakang seketika agar koneksi & thread langsung bebas!
                     activeAsyncXhrs.forEach(function(xhr) {
                         try { xhr.abort(); } catch(e) {}
                     });
@@ -71,8 +100,32 @@ function load_phmx_scripts() {
                         NProgress.start();
                     }
                 } else if (isAsync && evt.detail && evt.detail.xhr) {
-                    // Catat XHR async latar belakang yang aktif (tanpa menyalakan NProgress)
+                    // Catat XHR async/polling latar belakang yang aktif (Silent: tanpa menyalakan NProgress)
                     activeAsyncXhrs.add(evt.detail.xhr);
+                }
+            });
+
+            // Smart DOM Diff: Cegah re-render DOM komponen jika isi HTML tidak berubah (204 No Content / Hash identik)
+            document.addEventListener('htmx:beforeSwap', function(evt) {
+                const xhr = evt.detail && evt.detail.xhr;
+                const targetEl = (evt.detail && evt.detail.target) || evt.target;
+                if (!xhr || !targetEl || !targetEl.dataset) return;
+
+                const newHash = xhr.getResponseHeader('X-PHMX-Hash');
+                const reqPath = (evt.detail.pathInfo && evt.detail.pathInfo.requestPath) || '';
+
+                if (xhr.status === 204) {
+                    evt.detail.shouldSwap = false;
+                    return;
+                }
+
+                if (newHash) {
+                    if (targetEl.dataset.phmxHash === newHash && targetEl.dataset.phmxPath === reqPath) {
+                        evt.detail.shouldSwap = false;
+                        return;
+                    }
+                    targetEl.dataset.phmxHash = newHash;
+                    targetEl.dataset.phmxPath = reqPath;
                 }
             });
 

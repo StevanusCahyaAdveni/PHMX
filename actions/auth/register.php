@@ -1,31 +1,35 @@
 <?php
 // actions/auth/register.php
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $fullname = sani($_POST['fullname'] ?? '');
-    $username = sani($_POST['username'] ?? '');
-    $email = sani($_POST['email'] ?? '');
-    $telp = sani($_POST['telp_number'] ?? '');
+    // Sanitasi + validasi batch — semua error tampil sekaligus dalam daftar, auto exit jika gagal
+    $data = saniFields($_POST, [
+        'fullname' => 'required|alpha|minChar:3|maxChar:100',
+        'username' => 'required|alphaNum|minChar:4|maxChar:30|unique:users,username',
+        'email'    => 'required|email|maxChar:100|unique:users,email',
+        'telp_number' => 'phone|maxChar:20',
+    ], [
+        'fullname'    => 'Nama lengkap',
+        'username'    => 'Username',
+        'email'       => 'Email',
+        'telp_number' => 'No. Telepon',
+    ]);
+
+    // Password tidak disanitasi (agar karakter spesial tidak diubah), hanya divalidasi
     $password = $_POST['password'] ?? '';
-    
-    if (empty($fullname) || empty($username) || empty($email) || empty($password)) {
-        htmxMessage('Semua kolom wajib diisi!', 'danger', ['fullname', 'username', 'email', 'telp_number']);
+    $passwordErrors = validateRules($password, 'required|minChar:8|maxChar:72|confirmed', 'Password', 'password');
+    if ($passwordErrors) {
+        htmxMessage($passwordErrors, 'danger', [], ['password', 'password_confirmation']);
     }
-    
-    // Cek ketersediaan username atau email
-    $check = querySecure($con, "SELECT id FROM users WHERE username = ? OR email = ?", [$username, $email], 'ss');
-    if ($check && mysqli_num_rows($check) > 0) {
-        htmxMessage('Username atau Email sudah terdaftar!', 'warning', ['fullname', 'username', 'email', 'telp_number']);
-    }
-    
+
     $id = generate_uuid();
     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-    
-    $success = executeSecure($con, 
+
+    $success = executeSecure($con,
         "INSERT INTO users (id, fullname, username, email, telp_number, password) VALUES (?, ?, ?, ?, ?, ?)",
-        [$id, $fullname, $username, $email, $telp, $hashedPassword],
+        [$id, $data['fullname'], $data['username'], $data['email'], $data['telp_number'], $hashedPassword],
         'ssssss'
     );
-    
+
     if ($success) {
         htmxRedirectWithMessage('#auth/login', 'Pendaftaran berhasil! Mengalihkan ke form login...', 'success', 1500);
     } else {
