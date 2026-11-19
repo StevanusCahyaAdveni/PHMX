@@ -67,17 +67,14 @@
                         
                         $whereConditions = [];
                         $params = [];
-                        $types = "";
                         
                         if (!empty($search_name)) {
                             $whereConditions[] = "fullname LIKE ?";
                             $params[] = "%{$search_name}%";
-                            $types .= "s";
                         }
                         if (!empty($search_email)) {
                             $whereConditions[] = "email LIKE ?";
                             $params[] = "%{$search_email}%";
-                            $types .= "s";
                         }
                         
                         $whereClause = "";
@@ -92,7 +89,7 @@
                         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
                         
 
-                        $paginated = paginationQuery($con, $sql, $params, $types, $limit, 'users/user-management');
+                        $paginated = paginationQuery($con, $sql, $params, '', $limit, 'users/user-management');
                         $users = $paginated['data'];
                         
                         if ($users && mysqli_num_rows($users) > 0) {

@@ -84,7 +84,7 @@
                         <input class="form-check-input" type="checkbox" id="generateApi" name="generate_api" value="1" checked>
                         <label class="form-check-label fw-bold" for="generateApi">Generate REST API Endpoint (JSON)</label>
                     </div>
-                    <small class="text-muted d-block mt-1">Jika dicentang, file API akan digenerate di <code>api/{folder}/{file}.php</code> untuk diakses via mobile apps atau pihak ketiga.</small>
+                    <small class="text-muted d-block mt-1">Jika dicentang, file API akan digenerate di <code>api/methods/{folder}/{file}.php</code> untuk diakses via mobile apps atau pihak ketiga.</small>
                 </div>
                 
                 <div class="text-end">

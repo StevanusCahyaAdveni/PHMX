@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             @mysqli_query($con, $sql_content);
             $checkMig = @mysqli_query($con, "SHOW TABLES LIKE 'migrations'");
             if ($checkMig && mysqli_num_rows($checkMig) > 0) {
-                @executeSecure($con, "INSERT INTO migrations (filename) VALUES (?)", [$migrationFileName], 's');
+                @executeSecure($con, "INSERT INTO migrations (filename) VALUES (?)", [$migrationFileName]);
             }
         } catch (Throwable $e) {
             // Lanjutkan jika tabel sudah ada
@@ -110,7 +110,6 @@ function generatePageContent($file_name, $folder_name, $table_name, $col_names, 
         $whereChecks .= "                        if (!empty(\$search_{$sc['name']})) {\n";
         $whereChecks .= "                            \$whereConditions[] = \"{$sc['name']} LIKE ?\";\n";
         $whereChecks .= "                            \$params[] = \"%{\$search_{$sc['name']}}%\";\n";
-        $whereChecks .= "                            \$types .= \"s\";\n";
         $whereChecks .= "                        }\n";
     }
     $searchFormArgs .= "            ]";
@@ -218,7 +217,6 @@ function generatePageContent($file_name, $folder_name, $table_name, $col_names, 
 {$searchVars}
                         \$whereConditions = [];
                         \$params = [];
-                        \$types = "";
 {$whereChecks}
                         \$whereClause = "";
                         if (!empty(\$whereConditions)) {
@@ -231,7 +229,7 @@ function generatePageContent($file_name, $folder_name, $table_name, $col_names, 
                         // EKSEKUSI AJAIB (Default 10 data per halaman dengan pagination)
                         \$limit = isset(\$_GET['limit']) ? (int)\$_GET['limit'] : 10;
 
-                        \$paginated = paginationQuery(\$con, \$sql, \$params, \$types, \$limit, '{$folder_name}/{$file_name}');
+                        \$paginated = paginationQuery(\$con, \$sql, \$params, '', \$limit, '{$folder_name}/{$file_name}');
                         \$rows = \$paginated['data'];
                         
                         if (\$rows && mysqli_num_rows(\$rows) > 0) {
@@ -389,8 +387,7 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
         
         \$success = executeSecure(\$con, 
             "INSERT INTO {$table_name} ({$insertFields}) VALUES ({$insertPlaceholders})",
-            [{$insertVars}],
-            '{$insertTypes}'
+            [{$insertVars}]
         );
         
         if (\$success) {
@@ -412,8 +409,7 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
         
         \$success = executeSecure(\$con, 
             "UPDATE {$table_name} SET {$updateFieldsStr} WHERE id = ?",
-            [{$updateVarsStr}],
-            '{$updateTypes}'
+            [{$updateVarsStr}]
         );
         
         if (\$success) {
@@ -433,7 +429,7 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
             htmxMessage('ID data tidak valid.', 'danger');
         }
         
-        \$success = executeSecure(\$con, "DELETE FROM {$table_name} WHERE id = ?", [\$id], 's');
+        \$success = executeSecure(\$con, "DELETE FROM {$table_name} WHERE id = ?", [\$id]);
         
         if (\$success) {
             htmxReloadWithMessage('Data {$title} berhasil dihapus!', 'success');
@@ -502,7 +498,7 @@ if (empty(\$input) && (\$json = file_get_contents('php://input'))) {
 switch (\$method) {
     case 'GET':
         if (\$id) {
-            \$res = querySecure(\$con, "SELECT * FROM {$table_name} WHERE id = ? LIMIT 1", [\$id], 's');
+            \$res = querySecure(\$con, "SELECT * FROM {$table_name} WHERE id = ? LIMIT 1", [\$id]);
             \$data = \$res ? mysqli_fetch_assoc(\$res) : null;
             if (\$data) {
                 response(true, 'Data berhasil ditemukan', \$data);
@@ -515,7 +511,7 @@ switch (\$method) {
             \$limit = isset(\$_GET['limit']) ? (int)\$_GET['limit'] : 20;
             \$offset = (\$page - 1) * \$limit;
             
-            \$res = querySecure(\$con, "SELECT * FROM {$table_name} ORDER BY created_at DESC LIMIT ? OFFSET ?", [\$limit, \$offset], 'ii');
+            \$res = querySecure(\$con, "SELECT * FROM {$table_name} ORDER BY created_at DESC LIMIT ? OFFSET ?", [\$limit, \$offset]);
             \$data = [];
             if (\$res) {
                 while (\$r = mysqli_fetch_assoc(\$res)) {
@@ -536,8 +532,7 @@ switch (\$method) {
         \$id = generate_uuid();
         \$ok = executeSecure(\$con, 
             "INSERT INTO {$table_name} ({$insertFields}) VALUES ({$insertPlaceholders})", 
-            [{$insertVarsStr}], 
-            '{$insertTypes}'
+            [{$insertVarsStr}]
         );
         
         if (\$ok) {
@@ -557,8 +552,7 @@ switch (\$method) {
 {$inputAssignments}
         \$ok = executeSecure(\$con, 
             "UPDATE {$table_name} SET {$updateFieldsStr} WHERE id = ?", 
-            [{$updateVarsStr}], 
-            '{$updateTypes}'
+            [{$updateVarsStr}]
         );
         
         if (\$ok) {
@@ -575,7 +569,7 @@ switch (\$method) {
             response(false, 'ID wajib disertakan untuk menghapus data');
         }
         
-        \$ok = executeSecure(\$con, "DELETE FROM {$table_name} WHERE id = ?", [\$id], 's');
+        \$ok = executeSecure(\$con, "DELETE FROM {$table_name} WHERE id = ?", [\$id]);
         if (\$ok) {
             response(true, 'Data berhasil dihapus');
         } else {

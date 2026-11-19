@@ -73,6 +73,17 @@ description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (p
         'email'    => 'Email',
     ]);
     ```
+  - **Batch tanpa auto-exit (`validateFields`)** — cocok untuk `api/methods/` (JSON) maupun `actions/` yang butuh kontrol respon manual:
+    ```php
+    $res = validateFields($_POST, [
+        'username' => 'required|alphaNum|minChar:4|unique:users,username',
+        'email'    => 'required|email|unique:users,email',
+    ], ['username' => 'Username', 'email' => 'Email']);
+    if (!$res['valid']) {
+        // Di api/methods/: response(false, 'Validasi gagal', ['errors' => $res['field_errors']]);
+        // Di actions/:     htmxMessage($res['errors'], 'danger', [], $res['invalid_fields']);
+    }
+    ```
   - **Per-field** — satu baris, auto exit di error pertama:
     ```php
     $nama = sani($_POST['nama'] ?? '', 'required|minChar:8', 'Nama', 'nama');
@@ -90,8 +101,8 @@ description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (p
 ## 3. Database & Transaksi TCL (ACID Safe)
 
 - **Prepared Statements**:
-  - `querySecure($con, $sql, $params, $types)` -> Untuk query `SELECT`.
-  - `executeSecure($con, $sql, $params, $types)` -> Untuk query `INSERT`, `UPDATE`, `DELETE`.
+  - `querySecure($con, $sql, $params, $types = '')` -> Untuk query `SELECT` (`$types` opsional, otomatis deteksi `i`/`d`/`s` jika dikosongkan).
+  - `executeSecure($con, $sql, $params, $types = '')` -> Untuk query `INSERT`, `UPDATE`, `DELETE` (`$types` opsional, tetap mendukung manual misal `'b'` untuk blob).
 - **Transaksi Konsistensi Data (TCL)**:
   Untuk eksekusi multi-query yang saling bergantung, **WAJIB** bungkus dengan `transactionSecure()`:
   ```php
@@ -111,6 +122,7 @@ description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (p
 ## 4. REST API Gateway & Autentikasi Ganda
 
 - **Gateway Terpusat (`/api/`)**: Semua request diarahkan ke `api/index.php?endpoint=...`.
+- **Auto-Parse JSON Body**: Request dengan `Content-Type: application/json` otomatis di-parse ke `$_POST` dan dapat diakses melalui `request_json($key = null, $default = null)` (mengembalikan HTTP `400` jika JSON tidak valid).
 - **Standar Respons JSON**: HANYA gunakan `response($success, $message, $data)`.
 - **Autentikasi Web**: Berbasis Session PHP + *Silent Login (Remember Me)* via `localStorage` di client (`assets/js/auth.js`) yang menembak `/api/auth/silent_login`.
 - **Autentikasi Mobile**: Berbasis Bearer Token (`Authorization: Bearer <token>`). Verifikasi token otomatis dilakukan middleware `api_auth` dan user login tersimpan di `$GLOBALS['auth_user']`.
@@ -136,6 +148,7 @@ description: "PANDUAN UTAMA WAJIB BACA: Aturan arsitektur 3-lapisan, CLI phmx (p
 |---|---|
 | `sani($data, $rules, $label, $fieldName)` | Sanitasi input XSS + validasi rules opsional (auto `htmxMessage` + exit jika gagal) |
 | `saniFields($input, $definitions, $labels)` | Validasi batch seluruh form; semua error sekaligus (daftar bullet), hanya field invalid yang dikosongkan |
+| `validateFields($input, $definitions, $labels, $sanitize)` | Validasi batch tanpa auto-exit (return `valid`, `data`, `errors`, `field_errors`, `invalid_fields`) untuk Web & REST API |
 | `validateRules($value, $rules, $label, $fieldName)` | Validasi tanpa sanitasi (untuk password) — return array pesan error |
 | `asset($path)` | Smart versioning CSS/JS via `filemtime()` |
 | `uploadFile($file, $dir, $size, $types)` | Upload aman + auto-compress + whitelist |

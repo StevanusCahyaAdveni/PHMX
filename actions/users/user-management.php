@@ -34,8 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $success = executeSecure($con,
             "INSERT INTO users (id, fullname, username, email, telp_number, role, password) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [$id, $data['fullname'], $data['username'], $data['email'], $data['telp_number'], $data['role'], $hashedPassword],
-            'sssssss'
+            [$id, $data['fullname'], $data['username'], $data['email'], $data['telp_number'], $data['role'], $hashedPassword]
         );
 
         if ($success) {
@@ -77,14 +76,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
             $success = executeSecure($con,
                 "UPDATE users SET fullname = ?, username = ?, email = ?, telp_number = ?, role = ?, password = ? WHERE id = ?",
-                [$data['fullname'], $data['username'], $data['email'], $data['telp_number'], $data['role'], $hashedPassword, $id],
-                'sssssss'
+                [$data['fullname'], $data['username'], $data['email'], $data['telp_number'], $data['role'], $hashedPassword, $id]
             );
         } else {
             $success = executeSecure($con,
                 "UPDATE users SET fullname = ?, username = ?, email = ?, telp_number = ?, role = ? WHERE id = ?",
-                [$data['fullname'], $data['username'], $data['email'], $data['telp_number'], $data['role'], $id],
-                'ssssss'
+                [$data['fullname'], $data['username'], $data['email'], $data['telp_number'], $data['role'], $id]
             );
         }
 
@@ -106,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             htmxMessage('Anda tidak dapat menghapus akun Anda sendiri!', 'danger');
         }
 
-        $success = executeSecure($con, "DELETE FROM users WHERE id = ?", [$id], 's');
+        $success = executeSecure($con, "DELETE FROM users WHERE id = ?", [$id]);
 
         if ($success) {
             htmxReloadWithMessage('Pengguna berhasil dihapus!', 'success');

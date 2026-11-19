@@ -15,6 +15,21 @@ function response($success, $message, $data = []) {
     exit;
 }
 
+/**
+ * Ambil payload JSON yang sudah diparsing (atau satu key tertentu).
+ *
+ * @param string|null $key     Nama key opsional
+ * @param mixed       $default Nilai default jika key tidak ditemukan
+ * @return mixed
+ */
+function request_json($key = null, $default = null) {
+    $data = $GLOBALS['_phmx_json_body'] ?? [];
+    if ($key === null) {
+        return $data;
+    }
+    return $data[$key] ?? $default;
+}
+
 // Menangani request preflight CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -32,6 +47,24 @@ $endpoint = trim($endpoint, '/');
 if (empty($endpoint)) {
     http_response_code(400);
     response(false, 'API Endpoint is required');
+}
+
+// Auto-parse body JSON (Content-Type: application/json) untuk POST/PUT/PATCH/DELETE
+$GLOBALS['_phmx_json_body'] = [];
+$content_type = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
+if (stripos($content_type, 'application/json') !== false) {
+    $raw_input = file_get_contents('php://input');
+    if ($raw_input !== false && trim($raw_input) !== '') {
+        $decoded_json = json_decode($raw_input, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            http_response_code(400);
+            response(false, 'Format JSON pada request body tidak valid');
+        }
+        if (is_array($decoded_json)) {
+            $GLOBALS['_phmx_json_body'] = $decoded_json;
+            $_POST = array_merge($_POST, $decoded_json);
+        }
+    }
 }
 
 // Validasi CSRF Token untuk request berbasis session web (stateless/token-based API dilewati)

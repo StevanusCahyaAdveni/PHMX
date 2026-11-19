@@ -74,7 +74,7 @@ function handleMakeCrud($argv) {
 
     $pages_dir = __DIR__ . '/pages/' . $folder_name;
     $actions_dir = __DIR__ . '/actions/' . $folder_name;
-    $api_dir = __DIR__ . '/api/' . $folder_name;
+    $api_dir = __DIR__ . '/api/methods/' . $folder_name;
 
     // Buat direktori jika belum ada
     if (!is_dir($pages_dir)) mkdir($pages_dir, 0777, true);
@@ -131,23 +131,24 @@ PHP;
         echo "Skipped: {$actions_file} (Sudah ada)\n";
     }
 
-    // 3. GENERATE API
+    // 3. GENERATE API (Diarahkan oleh api/index.php ke api/methods/)
     $api_file = $api_dir . '/' . $file_name . '.php';
     if (!file_exists($api_file)) {
         $api_content = <<<PHP
 <?php
-// api/{$folder_name}/{$file_name}.php
-header("Content-Type: application/json");
-// require_once __DIR__ . '/../../functions/index.php';
+// api/methods/{$folder_name}/{$file_name}.php
+// Endpoint diakses melalui: /api/{$folder_name}/{$file_name}
+// Helper global \$con dan fungsi response() sudah otomatis dimuat oleh api/index.php
 
 \$method = \$_SERVER['REQUEST_METHOD'];
 
 switch (\$method) {
     case 'GET':
-        echo json_encode(['status' => 'success', 'message' => 'API Endpoint for {$file_name} is ready.']);
+        response(true, 'API Endpoint for {$file_name} is ready.');
         break;
     default:
-        echo json_encode(['status' => 'error', 'message' => 'Method not allowed']);
+        http_response_code(405);
+        response(false, 'Method not allowed');
         break;
 }
 ?>

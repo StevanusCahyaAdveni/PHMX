@@ -1,11 +1,32 @@
 <?php 
 /**
+ * Deteksi otomatis tipe data parameter untuk mysqli_stmt_bind_param
+ *
+ * @param array $params Daftar parameter yang akan di-bind
+ * @return string String tipe parameter (i=integer, d=double, s=string)
+ */
+function detectParamTypes(array $params)
+{
+    $types = '';
+    foreach ($params as $param) {
+        if (is_int($param) || is_bool($param)) {
+            $types .= 'i';
+        } elseif (is_float($param)) {
+            $types .= 'd';
+        } else {
+            $types .= 's';
+        }
+    }
+    return $types;
+}
+
+/**
  * Fungsi untuk query yang aman dengan prepared statement
  * 
  * @param mysqli $con Koneksi database
  * @param string $query Query dengan placeholder (?)
  * @param array $params Parameter untuk binding
- * @param string $types Tipe data parameter (s=string, i=integer, d=double, b=blob)
+ * @param string $types Tipe data parameter opsional (s=string, i=integer, d=double, b=blob). Jika kosong, otomatis dideteksi.
  * @return mysqli_result|bool Hasil query atau false jika gagal
  */
 function querySecure($con, $query, $params = [], $types = '')
@@ -18,7 +39,11 @@ function querySecure($con, $query, $params = [], $types = '')
     }
 
     if (!empty($params)) {
-        mysqli_stmt_bind_param($stmt, $types, ...$params);
+        if ($types === '') {
+            $types = detectParamTypes($params);
+        }
+        $bindParams = array_map(fn($p) => is_bool($p) ? (int)$p : $p, $params);
+        mysqli_stmt_bind_param($stmt, $types, ...$bindParams);
     }
 
     mysqli_stmt_execute($stmt);
@@ -35,7 +60,7 @@ function querySecure($con, $query, $params = [], $types = '')
  * @param mysqli $con Koneksi database
  * @param string $query Query dengan placeholder (?)
  * @param array $params Parameter untuk binding
- * @param string $types Tipe data parameter
+ * @param string $types Tipe data parameter opsional. Jika kosong, otomatis dideteksi.
  * @return bool|int True jika berhasil, atau last insert id untuk INSERT
  */
 function executeSecure($con, $query, $params = [], $types = '')
@@ -48,7 +73,11 @@ function executeSecure($con, $query, $params = [], $types = '')
     }
 
     if (!empty($params)) {
-        mysqli_stmt_bind_param($stmt, $types, ...$params);
+        if ($types === '') {
+            $types = detectParamTypes($params);
+        }
+        $bindParams = array_map(fn($p) => is_bool($p) ? (int)$p : $p, $params);
+        mysqli_stmt_bind_param($stmt, $types, ...$bindParams);
     }
 
     $success = mysqli_stmt_execute($stmt);

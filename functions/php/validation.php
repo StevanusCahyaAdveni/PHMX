@@ -189,6 +189,61 @@ function validateRules($value, $rules, $label = null, $fieldName = null)
 }
 
 /**
+ * Validasi batch seluruh field tanpa langsung exit (cocok untuk Web maupun REST API).
+ *
+ * Contoh di actions/ (Web HTMX):
+ *   $res = validateFields($_POST, ['email' => 'required|email'], ['email' => 'Email']);
+ *   if (!$res['valid']) htmxMessage($res['errors'], 'danger', [], $res['invalid_fields']);
+ *
+ * Contoh di api/methods/ (REST API JSON):
+ *   $res = validateFields($input, ['email' => 'required|email'], ['email' => 'Email']);
+ *   if (!$res['valid']) {
+ *       http_response_code(422);
+ *       response(false, 'Validasi gagal', ['errors' => $res['field_errors']]);
+ *   }
+ *
+ * @param array $input        Sumber data (misal $_POST atau payload JSON)
+ * @param array $definitions  Map field => rules
+ * @param array $labels       (Opsional) Map field => label ramah-pengguna
+ * @param bool  $sanitize     (Opsional) Sanitasi nilai dengan sani() sebelum validasi (default: true)
+ * @return array{valid: bool, data: array, errors: array, field_errors: array, invalid_fields: array}
+ */
+function validateFields($input, $definitions, $labels = [], $sanitize = true)
+{
+    $clean = [];
+    $allErrors = [];
+    $fieldErrors = [];
+    $invalidFields = [];
+
+    foreach ($definitions as $field => $rules) {
+        $raw = $input[$field] ?? '';
+        $value = $sanitize ? sani($raw) : $raw;
+
+        if ($rules === null || $rules === '') {
+            $clean[$field] = $value;
+            continue;
+        }
+
+        $label = $labels[$field] ?? ucwords(str_replace('_', ' ', $field));
+        $errors = validateRules($value, $rules, $label, $field);
+        if ($errors) {
+            $allErrors = array_merge($allErrors, $errors);
+            $fieldErrors[$field] = $errors;
+            $invalidFields[] = $field;
+        }
+        $clean[$field] = $value;
+    }
+
+    return [
+        'valid'          => empty($allErrors),
+        'data'           => $clean,
+        'errors'         => $allErrors,
+        'field_errors'   => $fieldErrors,
+        'invalid_fields' => $invalidFields,
+    ];
+}
+
+/**
  * Validasi batch seluruh field form sekaligus (sanitasi + validasi).
  * Jika ada error: otomatis memanggil htmxMessage() dengan gabungan pesan
  * dan keepFields berisi semua field yang invalid, lalu stop eksekusi (exit).
@@ -208,30 +263,12 @@ function validateRules($value, $rules, $label = null, $fieldName = null)
  */
 function saniFields($input, $definitions, $labels = [])
 {
-    $clean = [];
-    $allErrors = [];
-    $invalidFields = [];
+    $result = validateFields($input, $definitions, $labels, true);
 
-    foreach ($definitions as $field => $rules) {
-        if ($rules === null || $rules === '') {
-            // Field tanpa rules: cukup disanitasi
-            $clean[$field] = sani($input[$field] ?? '');
-            continue;
-        }
-        $label = $labels[$field] ?? ucwords(str_replace('_', ' ', $field));
-        $value = sani($input[$field] ?? '');
-        $errors = validateRules($value, $rules, $label, $field);
-        if ($errors) {
-            $allErrors = array_merge($allErrors, $errors);
-            $invalidFields[] = $field;
-        }
-        $clean[$field] = $value;
-    }
-
-    if ($allErrors) {
+    if (!$result['valid']) {
         // Kirim sebagai daftar agar toast menampilkan tiap error secara per-baris
-        htmxMessage($allErrors, 'danger', [], $invalidFields);
+        htmxMessage($result['errors'], 'danger', [], $result['invalid_fields']);
     }
 
-    return $clean;
+    return $result['data'];
 }

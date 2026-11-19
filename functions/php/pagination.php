@@ -78,7 +78,7 @@ function generatePagination($totalData, $limit, $currentPage, $baseUrlHash)
  * @param mysqli $con Koneksi database
  * @param string $sql Kueri SQL dasar (tanpa LIMIT dan OFFSET)
  * @param array $params Array parameter untuk prepared statement
- * @param string $types String tipe data parameter (misal 'ssi')
+ * @param string $types String tipe data parameter opsional (misal 'ssi'). Jika kosong, otomatis dideteksi.
  * @param int $limit Batas jumlah baris per halaman
  * @param string $baseUrlHash Hash dasar untuk link pagination
  * @return array Berisi 'data' (mysqli_result), 'links' (HTML string), dan metadata lainnya
@@ -108,7 +108,8 @@ function paginationQuery($con, $sql, $params = [], $types = "", $limit = 5, $bas
     $finalParams = $params;
     $finalParams[] = $limit;
     $finalParams[] = $offset;
-    $finalTypes = $types . "ii";
+    // Jika $types kosong (auto-detect), biarkan kosong agar querySecure mendeteksi semua parameter termasuk LIMIT & OFFSET
+    $finalTypes = ($types !== '') ? ($types . "ii") : '';
 
     $dataQuery = querySecure($con, $finalSql, $finalParams, $finalTypes);
 
